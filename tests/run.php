@@ -1,0 +1,450 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Lightweight test harness for the gallery library classes.
+ */
+
+error_reporting(E_ALL);
+
+require_once __DIR__ . '/../functions.inc.php';
+
+class TestFailure extends Exception
+{
+}
+
+function assertTrue(mixed $condition, string $message = ''): void
+{
+    if (!$condition) {
+        throw new TestFailure($message !== '' ? $message : 'Failed asserting that condition is true.');
+    }
+}
+
+function assertFalse(mixed $condition, string $message = ''): void
+{
+    if ($condition) {
+        throw new TestFailure($message !== '' ? $message : 'Failed asserting that condition is false.');
+    }
+}
+
+function assertEquals(mixed $expected, mixed $actual, string $message = ''): void
+{
+    if ($expected !== $actual) {
+        $baseMessage = sprintf(
+            'Failed asserting that %s matches expected %s.',
+            var_export($actual, true),
+            var_export($expected, true)
+        );
+        throw new TestFailure($message !== '' ? $message . ' ' . $baseMessage : $baseMessage);
+    }
+}
+
+function assertArrayHasKey(mixed $key, array $array, string $message = ''): void
+{
+    if (!array_key_exists($key, $array)) {
+        $baseMessage = sprintf('Failed asserting that array has key %s.', var_export($key, true));
+        throw new TestFailure($message !== '' ? $message . ' ' . $baseMessage : $baseMessage);
+    }
+}
+
+function fail(string $message): void
+{
+    throw new TestFailure($message);
+}
+
+function with_temp_dir(callable $callback): void
+{
+    $base = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'gallery_test_' . uniqid('', true);
+    if (!mkdir($base, 0700, true)) {
+        throw new RuntimeException('Unable to create temporary directory: ' . $base);
+    }
+
+    try {
+        $callback($base);
+    } finally {
+        rrmdir($base);
+    }
+}
+
+function rrmdir(string $dir): void
+{
+    if (!is_dir($dir)) {
+        return;
+    }
+
+    $items = scandir($dir);
+    if (!$items) {
+        return;
+    }
+
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+        $path = $dir . DIRECTORY_SEPARATOR . $item;
+        if (is_dir($path)) {
+            rrmdir($path);
+        } else {
+            @unlink($path);
+        }
+    }
+    @rmdir($dir);
+}
+
+$tests = [
+    'exif_helper_returns_empty_array_for_missing_file' => function (): void {
+        $result = GalleryExifHelper::read(__DIR__ . '/nonexistent.jpg');
+        assertTrue(is_array($result), 'Exif helper should return an array');
+        assertEquals([], $result);
+    },
+    'yaml_repository_dump_matches_expected' => function (): void {
+        $repository = new GalleryYamlRepository();
+        $input = [
+            'photo1' => ['title' => 'Example', 'published' => true],
+            'photo2' => 'value',
+        ];
+        $expected = "photo1:\n  title: Example\n  published: true\nphoto2: value\n";
+        assertEquals($expected, $repository->dump($input));
+    },
+    'yaml_repository_load_parses_yaml' => function (): void {
+        with_temp_dir(function (string $dir): void {
+            $yamlPath = $dir . '/library.yml';
+            file_put_contents($yamlPath, "photo1:\n  title: Example\nphoto2: value\n");
+
+            $repository = new GalleryYamlRepository();
+            $data = $repository->load($yamlPath);
+
+            assertArrayHasKey('photo1', $data);
+            assertEquals('Example', $data['photo1']['title']);
+            assertEquals('value', $data['photo2']);
+        });
+    },
+    'library_normalizer_converts_old_format' => function (): void {
+        $input = [
+            'legacy.jpg' => [
+                'title' => 'Legacy',
+            ],
+        ];
+        $normalized = GalleryLibraryNormalizer::normalize($input);
+        $id = substr(hash('sha1', 'legacy.jpg'), -6);
+        assertArrayHasKey($id, $normalized);
+        assertEquals('legacy.jpg', $normalized[$id]['filename']);
+        assertEquals('Legacy', $normalized[$id]['title']);
+        assertEquals($id, $normalized[$id]['id']);
+    },
+    'library_manager_find_missing_photos_detects_missing_files' => function (): void {
+        with_temp_dir(function (string $dir): void {
+            $photosDir = $dir . '/photos';
+            mkdir($photosDir);
+            file_put_contents($photosDir . '/image1.jpg', 'data');
+            file_put_contents($photosDir . '/image2.jpg', 'data');
+
+            $libraryPath = $dir . '/library.yml';
+            (new GalleryYamlRepository())->save($libraryPath, [
+                'image1.jpg' => ['title' => 'Image 1'],
+            ]);
+
+            $manager = new GalleryLibraryManager($libraryPath, $photosDir, $dir . '/photos', []);
+            $missing = $manager->findMissingPhotos();
+            sort($missing);
+
+            assertEquals(['image2.jpg'], $missing);
+        });
+    },
+    'library_manager_load_returns_array' => function (): void {
+        with_temp_dir(function (string $dir): void {
+            $libraryPath = $dir . '/library.yml';
+            $data = [
+                'sample.jpg' => ['title' => 'Sample'],
+            ];
+            (new GalleryYamlRepository())->save($libraryPath, $data);
+
+            $manager = new GalleryLibraryManager($libraryPath, $dir . '/originals', $dir . '/photos', []);
+            $loaded = $manager->load();
+            $expectedId = substr(hash('sha1', 'sample.jpg'), -6);
+
+            assertArrayHasKey($expectedId, $loaded);
+            assertEquals('Sample', $loaded[$expectedId]['title']);
+            assertEquals('sample.jpg', $loaded[$expectedId]['filename']);
+        });
+    },
+    'library_manager_sync_adds_new_files_and_removes_missing' => function (): void {
+        with_temp_dir(function (string $dir): void {
+            $originalsDir = $dir . '/originals';
+            mkdir($originalsDir);
+            $pngData = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGP4DwQACfsD/Q8xkAAAAABJRU5ErkJggg==', true);
+            file_put_contents($originalsDir . '/new.png', $pngData);
+
+            $derivedDir = $dir . '/photos';
+            $libraryPath = $dir . '/library.yml';
+            (new GalleryYamlRepository())->save($libraryPath, [
+                'old.jpg' => [
+                    'title' => 'Old',
+                    'description' => 'Desc',
+                    'date_taken' => 'Yesterday',
+                ],
+            ]);
+
+            $manager = new GalleryLibraryManager($libraryPath, $originalsDir, $derivedDir, ['thumbnail' => 100]);
+            $result = $manager->sync();
+            $synced = $result['library'];
+            assertEquals([], $result['duplicates']);
+
+            $newId = substr(hash('sha1', 'new.png'), -6);
+            $oldId = substr(hash('sha1', 'old.jpg'), -6);
+
+            assertArrayHasKey($newId, $synced);
+            assertEquals('new', $synced[$newId]['title']);
+            assertEquals('', $synced[$newId]['description']);
+            assertEquals('new.png', $synced[$newId]['filename']);
+            assertEquals($newId, $synced[$newId]['id']);
+            assertTrue(isset($synced[$newId]['width']) && $synced[$newId]['width'] === 1);
+            assertTrue(isset($synced[$newId]['height']) && $synced[$newId]['height'] === 1);
+            assertTrue(array_key_exists('exif', $synced[$newId]));
+            assertEquals('Waldo Jaquith', $synced[$newId]['author']);
+            assertEquals('CC BY-NC-SA 4.0', $synced[$newId]['license']);
+            assertFalse(isset($synced[$oldId]), 'Missing files should be removed from library');
+            assertTrue(is_dir($derivedDir), 'Thumbnails directory should be created if missing');
+            $expectedThumb = $derivedDir . '/' . $newId . '_thumbnail.png';
+            assertTrue(is_file($expectedThumb), 'Thumbnail file should be created (or copied)');
+        });
+    },
+    'library_manager_sync_updates_existing_entry' => function (): void {
+        with_temp_dir(function (string $dir): void {
+            $originalsDir = $dir . '/originals';
+            mkdir($originalsDir);
+            $pngData = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGP4DwQACfsD/Q8xkAAAAABJRU5ErkJggg==', true);
+            file_put_contents($originalsDir . '/existing.png', $pngData);
+
+            $libraryPath = $dir . '/library.yml';
+            (new GalleryYamlRepository())->save($libraryPath, [
+                'existing.png' => [
+                    'title' => 'Custom title',
+                    'description' => 'Already there',
+                ],
+            ]);
+
+            $manager = new GalleryLibraryManager($libraryPath, $originalsDir, $dir . '/photos', []);
+            $result = $manager->sync();
+            $synced = $result['library'];
+            assertEquals([], $result['duplicates']);
+
+            $existingId = substr(hash('sha1', 'existing.png'), -6);
+            assertArrayHasKey($existingId, $synced);
+            assertEquals('Custom title', $synced[$existingId]['title']);
+            assertEquals('Already there', $synced[$existingId]['description']);
+            assertEquals(1, $synced[$existingId]['width']);
+            assertEquals(1, $synced[$existingId]['height']);
+            assertArrayHasKey('date_taken', $synced[$existingId]);
+            assertArrayHasKey('exif', $synced[$existingId]);
+            assertEquals($existingId, $synced[$existingId]['id']);
+            assertEquals('Waldo Jaquith', $synced[$existingId]['author']);
+            assertEquals('CC BY-NC-SA 4.0', $synced[$existingId]['license']);
+        });
+    },
+    'library_manager_sync_returns_original_when_photos_dir_missing' => function (): void {
+        with_temp_dir(function (string $dir): void {
+            $libraryPath = $dir . '/library.yml';
+            $source = ['photo.jpg' => ['title' => 'Existing']];
+            (new GalleryYamlRepository())->save($libraryPath, $source);
+
+            $manager = new GalleryLibraryManager($libraryPath, $dir . '/missing', $dir . '/photos', []);
+            $result = $manager->sync();
+            $synced = $result['library'];
+            assertEquals([], $result['duplicates']);
+
+            $normalized = GalleryLibraryNormalizer::normalize($source);
+            assertEquals($normalized, $synced);
+        });
+    },
+    'image_processor_is_photo_file_recognizes_supported_extensions' => function (): void {
+        assertTrue(GalleryImageProcessor::isPhotoFile('image.jpg'));
+        assertTrue(GalleryImageProcessor::isPhotoFile('image.JPG'));
+        assertTrue(GalleryImageProcessor::isPhotoFile('image.png'));
+        assertFalse(GalleryImageProcessor::isPhotoFile('document.pdf'));
+        assertFalse(GalleryImageProcessor::isPhotoFile('noextension'));
+    },
+    'image_processor_generate_thumbnail_returns_false_for_missing_file' => function (): void {
+        $processor = new GalleryImageProcessor();
+        $thumbPath = __DIR__ . '/tmp_thumb.jpg';
+        if (file_exists($thumbPath)) {
+            @unlink($thumbPath);
+        }
+        $result = $processor->generateThumbnail('/path/to/nowhere.jpg', $thumbPath, 100);
+        assertFalse($result);
+        assertFalse(file_exists($thumbPath), 'Thumbnail should not be created for missing source');
+    },
+    'image_processor_generate_thumbnail_creates_output_file' => function (): void {
+        with_temp_dir(function (string $dir): void {
+            $processor = new GalleryImageProcessor();
+            $source = $dir . '/source.png';
+            $thumbnail = $dir . '/thumb.png';
+            $pngData = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGP4DwQACfsD/Q8xkAAAAABJRU5ErkJggg==', true);
+            file_put_contents($source, $pngData);
+            $result = $processor->generateThumbnail($source, $thumbnail, 10);
+            assertTrue((bool) $result, 'Thumbnail generation should succeed or fall back to copying');
+            assertTrue(is_file($thumbnail), 'Thumbnail file should exist');
+            assertTrue(filesize($thumbnail) > 0, 'Thumbnail file should not be empty');
+        });
+    },
+    'exif_helper_extracts_gps_coordinates' => function (): void {
+        $exif = [
+            'GPSLatitude' => ['37/1', '48/1', '3000/100'],
+            'GPSLatitudeRef' => 'N',
+            'GPSLongitude' => ['122/1', '25/1', '1200/100'],
+            'GPSLongitudeRef' => 'W',
+        ];
+        $coords = GalleryExifHelper::extractGpsCoordinates($exif);
+        assertTrue(is_array($coords));
+        assertTrue(abs($coords['latitude'] - 37.808333) < 0.0001, 'Latitude should be ~37.808333');
+        assertTrue(abs($coords['longitude'] + 122.42) < 0.0001, 'Longitude should be ~-122.42');
+    },
+    'exif_helper_extracts_gps_coordinates_returns_null_when_missing' => function (): void {
+        $coords = GalleryExifHelper::extractGpsCoordinates([]);
+        assertTrue($coords === null);
+    },
+    'index_renderer_handles_numeric_photo_ids' => function (): void {
+        with_temp_dir(function (string $dir): void {
+            $originalsDir = $dir . '/originals';
+            mkdir($originalsDir);
+            $derivedDir = $dir . '/photos';
+            mkdir($derivedDir);
+
+            $pngData = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGP4DwQACfsD/Q8xkAAAAABJRU5ErkJggg==', true);
+            $filename = 'numeric.png';
+            file_put_contents($originalsDir . '/' . $filename, $pngData);
+
+            $libraryPath = $dir . '/library.yml';
+            (new GalleryYamlRepository())->save($libraryPath, [
+                '810612' => [
+                    'id' => '810612',
+                    'filename' => $filename,
+                    'title' => 'Numeric',
+                    'description' => '',
+                    'date_taken' => '',
+                    'width' => 1,
+                    'height' => 1,
+                    'exif' => [],
+                ],
+            ]);
+
+            $manager = new GalleryLibraryManager($libraryPath, $originalsDir, $derivedDir, []);
+            $libraryData = $manager->load();
+
+            $photos = [];
+            foreach ($libraryData as $photoId => $metadata) {
+                if (!is_array($metadata)) {
+                    continue;
+                }
+                $photoIdString = (string) $photoId;
+                $file = $metadata['filename'] ?? null;
+                if ($file === null) {
+                    continue;
+                }
+                $extension = strtolower((string) pathinfo($file, PATHINFO_EXTENSION));
+                $extensionSuffix = $extension !== '' ? '.' . $extension : '';
+                $idForFile = (string) ($metadata['id'] ?? $photoIdString);
+                $thumbnailPath = $derivedDir . '/' . $idForFile . '_thumbnail' . $extensionSuffix;
+                if (!is_file($thumbnailPath)) {
+                    $thumbnailPath = $originalsDir . '/' . $file;
+                }
+                if (!is_file($thumbnailPath)) {
+                    continue;
+                }
+                $photos[] = [
+                    'id' => $idForFile,
+                    'photo_id' => $photoIdString,
+                    'title' => $metadata['title'] ?? 'Untitled',
+                    'date_taken' => $metadata['date_taken'] ?? 'Unknown date',
+                    'thumbnail_path' => $thumbnailPath,
+                    'link' => 'view.php?id=' . rawurlencode($photoIdString),
+                ];
+            }
+
+            $renderer = new GalleryTemplateRenderer();
+            $html = $renderer->render('index.html.twig', ['photos' => $photos]);
+            assertTrue(strpos($html, '<div class="photo"') !== false, 'Index template should render photo entries');
+        });
+    },
+    'library_manager_corrects_orientation_when_supported' => function (): void {
+        if (!class_exists('Imagick')) {
+            return;
+        }
+
+        with_temp_dir(function (string $dir): void {
+            $originalsDir = $dir . '/originals';
+            mkdir($originalsDir);
+            $derivedDir = $dir . '/photos';
+            mkdir($derivedDir);
+
+            $imagePath = $originalsDir . '/rotated.jpg';
+            $imagick = new \Imagick();
+            $imagick->newImage(30, 10, new \ImagickPixel('blue'));
+            $imagick->setImageFormat('jpeg');
+            $imagick->writeImage($imagePath);
+            $imagick->clear();
+            $imagick->destroy();
+
+            // If Imagick doesn't embed orientation, short-circuit this test.
+            $exif = @exif_read_data($imagePath);
+            if (!is_array($exif) || !isset($exif['Orientation'])) {
+                return;
+            }
+
+            $libraryPath = $dir . '/library.yml';
+            (new GalleryYamlRepository())->save($libraryPath, []);
+
+            $manager = new GalleryLibraryManager($libraryPath, $originalsDir, $derivedDir, ['thumbnail' => 12]);
+            $result = $manager->sync();
+            $synced = $result['library'];
+            assertEquals([], $result['duplicates']);
+
+            $id = substr(hash('sha1', 'rotated.jpg'), -6);
+            assertArrayHasKey($id, $synced);
+            $record = $synced[$id];
+
+            assertEquals(10, $record['width']);
+            assertEquals(30, $record['height']);
+
+            if (isset($record['exif']['Orientation'])) {
+                assertEquals(1, (int) $record['exif']['Orientation']);
+            }
+
+            $thumbnailPath = $derivedDir . '/' . $id . '_thumbnail.jpg';
+            assertTrue(is_file($thumbnailPath), 'Thumbnail should exist after orientation correction');
+            $thumbInfo = getimagesize($thumbnailPath);
+            assertTrue($thumbInfo !== false);
+            assertEquals(12, (int) $thumbInfo[0]);
+        });
+    },
+];
+
+$passed = 0;
+$failed = 0;
+$failures = [];
+
+foreach ($tests as $name => $test) {
+    try {
+        $test();
+        $passed++;
+        echo '.';
+    } catch (Throwable $throwable) {
+        $failed++;
+        echo 'F';
+        $failures[] = [$name, $throwable];
+    }
+}
+
+echo PHP_EOL;
+echo sprintf("Ran %d tests: %d passed, %d failed.\n", count($tests), $passed, $failed);
+
+if ($failed > 0) {
+    echo "Failures:\n";
+    foreach ($failures as [$testName, $throwable]) {
+        echo sprintf("- %s: %s\n", $testName, $throwable->getMessage());
+    }
+    exit(1);
+}
+
+exit(0);

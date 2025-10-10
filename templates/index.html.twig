@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Charlottesville Photo Gallery</title>
+    <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+    <h1>Charlottesville Photos</h1>
+    {% if photos is empty %}
+        <p class="empty">No photos found in the library.</p>
+    {% else %}
+        <div class="gallery">
+            {% for photo in photos %}
+                <div class="photo" id="{{ photo.id|e }}">
+                    <a href="{{ photo.link }}">
+                        <div class="thumb-wrapper">
+                            <img src="{{ photo.thumbnail_path|e }}" alt="{{ photo.title|e }}">
+                        </div>
+                    </a>
+                    <div class="meta">
+                        <strong>{{ photo.title|e }}</strong>
+                        <span>{{ photo.date_taken|e }}</span>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    <footer>
+        <p>All photos copyright Waldo Jaquith, unless otherwise indicated. Photos are published under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en">the Creative Commons BY-NC-SA 4.0 license</a>.</p>
+    </footer>
+</body>
+</html>

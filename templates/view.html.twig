@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{{ title|e }} - Charlottesville Photos</title>
+    <link rel="stylesheet" href="assets/styles.css">
+    {% if map_lat is not null %}
+        <link rel="stylesheet"
+              href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+              integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+              crossorigin="" />
+    {% endif %}
+</head>
+<body>
+    <div class="container">
+        <h1>Charlottesville Photos</h1>
+        <a class="back-link" href="./">← Back to gallery</a>
+        <h2>{{ title|e }}</h2>
+        {% if date_taken %}
+            <p><strong>Taken:</strong> {{ date_taken|e }}</p>
+        {% endif %}
+        <img class="photo__image" src="{{ photo_path|e }}" alt="{{ title|e }}">
+
+        {% if description %}
+            <div class="meta-section">
+                <h2>Description</h2>
+                <p>{{ description|nl2br }}</p>
+            </div>
+        {% endif %}
+
+        {% if detail_fields %}
+            <div class="meta-section">
+                <h2>Details</h2>
+                <dl>
+                    {% for key, value in detail_fields %}
+                        <dt>{{ key|replace({'_': ' '})|title }}</dt>
+                        <dd>
+                            {% if value is iterable %}
+                                {{ value|json_encode(constant('JSON_UNESCAPED_SLASHES')) }}
+                            {% else %}
+                                {{ value }}
+                            {% endif %}
+                        </dd>
+                    {% endfor %}
+                </dl>
+            </div>
+        {% endif %}
+
+        <p><a href="{{ download_url|e }}">Download original</a></p>
+
+        {% if map_lat is not null and map_lon is not null %}
+            <div class="meta-section">
+                <h2>Location</h2>
+                <div class="map-container">
+                    <div id="photo-map" class="map"></div>
+                </div>
+                {% if map_direction_label is not null %}
+                    <p class="direction-label">Facing {{ map_direction_label }}</p>
+                {% endif %}
+                {% if map_link_url %}
+                    <p><a href="{{ map_link_url|e }}" target="_blank" rel="noopener noreferrer">Open in OpenStreetMap</a></p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+    <footer>
+        <p>All photos copyright Waldo Jaquith, unless otherwise indicated. Photos are published under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en">the Creative Commons BY-NC-SA 4.0 license</a>.</p>
+    </footer>
+    {% if map_lat is not null and map_lon is not null %}
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+                integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+                crossorigin=""></script>
+        <script>
+            (function () {
+                var lat = {{ map_lat|json_encode }};
+                var lon = {{ map_lon|json_encode }};
+
+                function initMap() {
+                    if (typeof L === 'undefined') {
+                        return;
+                    }
+
+                    var map = L.map('photo-map').setView([lat, lon], 16);
+
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
+                    }).addTo(map);
+
+                    var iconHtml;
+                    {% if map_direction_angle is not null %}
+                        iconHtml = '<div class="direction-arrow" style="transform: rotate({{ map_direction_angle }}deg);"></div>';
+                    {% else %}
+                        iconHtml = '<div class="direction-dot"></div>';
+                    {% endif %}
+
+                    var icon = L.divIcon({
+                        className: 'direction-icon',
+                        html: iconHtml,
+                        iconSize: [36, 36],
+                        iconAnchor: [18, 18]
+                    });
+
+                    L.marker([lat, lon], { icon: icon }).addTo(map);
+                }
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', initMap);
+                } else {
+                    initMap();
+                }
+            })();
+        </script>
+    {% endif %}
+</body>
+</html>

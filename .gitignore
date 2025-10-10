@@ -1,0 +1,20 @@
+# Dependencies
+/vendor/
+/composer.lock
+
+# Build output
+/backups/
+/photos/
+
+# Local originals (not tracked in repo)
+/originals/
+
+# PHP built-in server artifacts
+/.phpunit.result.cache
+
+# macOS
+.DS_Store
+
+# Temp files
+*.tmp
+*.log

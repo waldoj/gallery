@@ -1,0 +1,31 @@
+# Gallery
+
+Gallery is a small personal project to display a gallery of photos on a website. It is designed to sit lightly on the server, requiring no database. It's primarily written in PHP, with some Bash scripting.
+
+## Getting Started
+
+1. Install dependencies:
+
+   ```bash
+   composer install
+   ```
+
+2. Launch the local development server (available at [http://localhost:8000](http://localhost:8000)):
+
+   ```bash
+   composer serve
+   ```
+
+The Composer script uses PHP's built-in web server and serves the project root, so Twig templates, images, and CSS are available without additional configuration.
+
+## Build
+
+For deployment you can run the build script, which installs dependencies, runs the test suite, and refreshes the library metadata:
+
+```bash
+composer build
+```
+
+## License
+
+MIT.
