@@ -6,13 +6,13 @@ Gallery is a small personal project to display a gallery of photos on a website.
 
 1. Install dependencies:
 
-```bash
+```
 composer install
 ```
 
 2. Launch the local development server (available at [http://localhost:8000](http://localhost:8000)):
 
-```bash
+```
 composer serve
 ```
 
@@ -22,7 +22,7 @@ The Composer script uses PHP's built-in web server and serves the project root, 
 
 For deployment you can run the build script, which installs dependencies, runs the test suite, and refreshes the library metadata:
 
-```bash
+```
 composer build
 ```
 
