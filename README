@@ -6,15 +6,15 @@ Gallery is a small personal project to display a gallery of photos on a website.
 
 1. Install dependencies:
 
-   ```bash
-   composer install
-   ```
+```bash
+composer install
+```
 
 2. Launch the local development server (available at [http://localhost:8000](http://localhost:8000)):
 
-   ```bash
-   composer serve
-   ```
+```bash
+composer serve
+```
 
 The Composer script uses PHP's built-in web server and serves the project root, so Twig templates, images, and CSS are available without additional configuration.
 
