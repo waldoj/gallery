@@ -248,9 +248,16 @@ final class GalleryImageProcessor
             $sanitizedName = preg_replace('/[^a-z0-9_\-]/i', '', (string) $sizeName);
             $thumbnailPath = $thumbnailsDir . $photoId . '_' . $sanitizedName . $extensionSuffix;
 
-            if (!is_file($thumbnailPath)) {
-                $this->generateThumbnail($photoPath, $thumbnailPath, $dimension);
+            if (is_file($thumbnailPath)) {
+                continue;
             }
+
+            if ($sanitizedName === 'thumbsquare') {
+                $this->generateSquareThumbnail($photoPath, $thumbnailPath, $dimension, 144);
+                continue;
+            }
+
+            $this->generateThumbnail($photoPath, $thumbnailPath, $dimension);
         }
     }
 
@@ -349,6 +356,89 @@ final class GalleryImageProcessor
         }
 
         return (bool) $result;
+    }
+
+
+    public function generateSquareThumbnail(string $photoPath, string $thumbnailPath, int $size, int $dpi = 144): bool
+    {
+        if (!is_file($photoPath) || $size <= 0) {
+            return false;
+        }
+
+        $imageInfo = @getimagesize($photoPath);
+        if ($imageInfo === false) {
+            return false;
+        }
+
+        [$width, $height, $type] = $imageInfo;
+        if ($width <= 0 || $height <= 0) {
+            return false;
+        }
+
+        $cropSize = min($width, $height);
+        $srcX = (int) max(0, floor(($width - $cropSize) / 2));
+        $srcY = (int) max(0, floor(($height - $cropSize) / 2));
+
+        $thumbnailDir = dirname($thumbnailPath);
+        if (!is_dir($thumbnailDir) && !@mkdir($thumbnailDir, 0755, true) && !is_dir($thumbnailDir)) {
+            return false;
+        }
+
+        $callbacks = $this->resolveCallbacks((int) $type);
+        if ($callbacks === null) {
+            return (bool) @copy($photoPath, $thumbnailPath);
+        }
+
+        [$createCallback, $saveCallback] = $callbacks;
+
+        $sourceImage = @$createCallback($photoPath);
+        if ($sourceImage === false) {
+            return false;
+        }
+
+        $square = @imagecreatetruecolor($size, $size);
+        if ($square === false) {
+            imagedestroy($sourceImage);
+            return false;
+        }
+
+        // Preserve transparency for PNG/GIF
+        if (in_array($type, [IMAGETYPE_PNG, IMAGETYPE_GIF], true)) {
+            imagealphablending($square, false);
+            imagesavealpha($square, true);
+            $transparent = imagecolorallocatealpha($square, 0, 0, 0, 127);
+            imagefilledrectangle($square, 0, 0, $size, $size, $transparent);
+        }
+
+        $cropped = @imagecopyresampled(
+            $square,
+            $sourceImage,
+            0,
+            0,
+            $srcX,
+            $srcY,
+            $size,
+            $size,
+            $cropSize,
+            $cropSize
+        );
+
+        if ($cropped === false) {
+            imagedestroy($square);
+            imagedestroy($sourceImage);
+            return false;
+        }
+
+        if (function_exists('imageresolution')) {
+            @imageresolution($square, $dpi, $dpi);
+        }
+
+        $saved = $saveCallback($square, $thumbnailPath);
+
+        imagedestroy($square);
+        imagedestroy($sourceImage);
+
+        return (bool) $saved;
     }
 
     public function generateThumbnail(string $photoPath, string $thumbnailPath, int $size): bool

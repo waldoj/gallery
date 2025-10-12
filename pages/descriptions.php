@@ -76,6 +76,9 @@ function findThumbnailPath(
     $extensionSuffix = $extension !== '' ? '.' . $extension : '';
 
     $preferredSizes = [];
+    if (array_key_exists('thumbsquare', $sizes)) {
+        $preferredSizes[] = 'thumbsquare';
+    }
     if (array_key_exists('thumbnail', $sizes)) {
         $preferredSizes[] = 'thumbnail';
     }

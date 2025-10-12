@@ -83,7 +83,7 @@
             <div class="helper-grid">
                 {% for entry in entries %}
                     <div class="card">
-                        <a class="thumbnail" href="{{ base_path ~ '/view/' ~ entry.id|e }}">
+                        <a class="thumbnail" href="{{ base_path ~ '/view/?id=' ~ entry.id|e }}">
                             <img src="{{ entry.thumbnail_url|e }}" alt="Thumbnail for {{ entry.id|e }}">
                         </a>
                         <div class="meta">

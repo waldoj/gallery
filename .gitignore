@@ -5,6 +5,7 @@
 # Build output
 /backups/
 /photos/
+/build/
 
 # Downloaded map assets
 /assets/vendor/leaflet/
