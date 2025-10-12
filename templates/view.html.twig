@@ -3,16 +3,16 @@
 <head>
     <meta charset="utf-8">
     <title>{{ title|e }} - Charlottesville Photos</title>
-    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="stylesheet" href="{{ base_path ~ '/assets/styles.css' }}">
     {% if map_lat is not null %}
-        <link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css" />
+        <link rel="stylesheet" href="{{ base_path ~ '/assets/vendor/leaflet/leaflet.css' }}" />
     {% endif %}
 </head>
 <body>
     {% include '_menu.html.twig' %}
     <div class="container" data-photo-title="{{ title|lower|capitalize|e }}">
         <h1>Charlottesville Photos</h1>
-        <a class="back-link" href="/">← Back to gallery</a>
+        <a class="back-link" href="{{ base_path ~ '/' }}">← Back to gallery</a>
         <h2>{{ title|e }}</h2>
         {% if date_taken %}
             <p><strong>Taken:</strong> {{ date_taken|e }}</p>
@@ -62,7 +62,7 @@
         <p>All photos copyright Waldo Jaquith, unless otherwise indicated. Photos are published under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en">the Creative Commons BY-NC-SA 4.0 license</a>.</p>
     </footer>
     {% if map_lat is not null and map_lon is not null %}
-        <script src="/assets/vendor/leaflet/leaflet.js"></script>
+        <script src="{{ base_path ~ '/assets/vendor/leaflet/leaflet.js' }}"></script>
         <script>
             (function () {
                 var lat = {{ map_lat|json_encode }};

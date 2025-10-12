@@ -69,10 +69,15 @@ foreach ($libraryData as $photoId => $metadata) {
         'title' => $metadata['title'] ?? 'Untitled',
         'lat' => $latitude,
         'lon' => $longitude,
-        'url' => '/view/?id=' . rawurlencode((string)$photoId),
+        'url' => gallery_public_url_path('/view/?id=' . rawurlencode((string)$photoId)),
         'thumb' => $thumbnailUrl,
     ];
 }
+
+$stylesUrl = gallery_public_url_path('/assets/styles.css');
+$leafletCssUrl = gallery_public_url_path('/assets/vendor/leaflet/leaflet.css');
+$leafletJsUrl = gallery_public_url_path('/assets/vendor/leaflet/leaflet.js');
+$homeUrl = gallery_public_url_path('/');
 
 ?>
 <!DOCTYPE html>
@@ -80,8 +85,8 @@ foreach ($libraryData as $photoId => $metadata) {
 <head>
     <meta charset="utf-8">
     <title>Photo Map</title>
-    <link rel="stylesheet" href="/assets/styles.css">
-    <link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css">
+    <link rel="stylesheet" href="<?= htmlspecialchars($stylesUrl, ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?= htmlspecialchars($leafletCssUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <style>
         body {
             padding: 0;
@@ -119,11 +124,11 @@ foreach ($libraryData as $photoId => $metadata) {
     <?php echo $menuHtml; ?>
     <div id="map-wrapper">
         <h1>Photo Map</h1>
-        <p><a href="/">← Back to gallery</a></p>
+        <p><a href="<?= htmlspecialchars($homeUrl, ENT_QUOTES, 'UTF-8'); ?>">← Back to gallery</a></p>
         <div id="photo-map"></div>
     </div>
 
-    <script src="/assets/vendor/leaflet/leaflet.js"></script>
+    <script src="<?= htmlspecialchars($leafletJsUrl, ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script>
         const photos = <?php echo json_encode($photosWithLocation, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
 

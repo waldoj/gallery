@@ -10,14 +10,19 @@ $renderer = new GalleryTemplateRenderer();
 $initialLat = 38.029306; // Downtown Charlottesville
 $initialLon = -78.476678;
 
+$stylesUrl = gallery_public_url_path('/assets/styles.css');
+$leafletCssUrl = gallery_public_url_path('/assets/vendor/leaflet/leaflet.css');
+$leafletJsUrl = gallery_public_url_path('/assets/vendor/leaflet/leaflet.js');
+$homeUrl = gallery_public_url_path('/');
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <title>Photo Geolocator</title>
-    <link rel="stylesheet" href="/assets/styles.css">
-    <link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css">
+    <link rel="stylesheet" href="<?= htmlspecialchars($stylesUrl, ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?= htmlspecialchars($leafletCssUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <style>
         body {
             padding: 0;
@@ -69,14 +74,14 @@ $initialLon = -78.476678;
     <?php echo $renderer->render('_menu.html.twig', []); ?>
     <div id="geolocator-wrapper">
         <h1>Photo Geolocator</h1>
-        <p><a href="/">← Back to gallery</a></p>
+        <p><a href="<?= htmlspecialchars($homeUrl, ENT_QUOTES, 'UTF-8'); ?>">← Back to gallery</a></p>
         <p>Drag the marker to the desired location. Copy the YAML block below into <code>library.yml</code>.</p>
         <div id="geolocator-map"></div>
         <div id="decimal-output"></div>
         <pre id="yaml-output"></pre>
     </div>
 
-    <script src="/assets/vendor/leaflet/leaflet.js"></script>
+    <script src="<?= htmlspecialchars($leafletJsUrl, ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script>
         const initialLat = <?php echo json_encode($initialLat); ?>;
         const initialLon = <?php echo json_encode($initialLon); ?>;

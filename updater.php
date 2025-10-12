@@ -9,27 +9,34 @@ if (php_sapi_name() !== 'cli') {
     die('This script can only be run from the command line.');
 }
 
-require_once __DIR__ . '/settings.inc.php';
-require_once __DIR__ . '/functions.inc.php';
+$appRoot = __DIR__;
+$appRootNormalized = rtrim(str_replace('\\', '/', $appRoot), '/');
+
+require_once $appRoot . '/settings.inc.php';
+require_once $appRoot . '/functions.inc.php';
+
+$libraryPath = $appRootNormalized . '/' . ltrim($library, '/\\');
+$photosDirFs = $appRootNormalized . '/' . trim($photos_dir, '/\\');
+$thumbnailsDirFs = $appRootNormalized . '/' . trim($thumbnails_dir, '/\\');
 
 $timestamp = time();
-$backupDir = __DIR__ . '/backups';
+$backupDir = $appRoot . '/backups';
 if (!is_dir($backupDir)) {
     @mkdir($backupDir, 0755, true);
 }
 
-if (is_file($library)) {
+if (is_file($libraryPath)) {
     $backupPath = $backupDir . '/library-' . $timestamp . '.yml';
-    if (!@copy($library, $backupPath)) {
+    if (!@copy($libraryPath, $backupPath)) {
         fwrite(STDERR, "Warning: Failed to create backup at {$backupPath}\n");
     }
 }
+$libraryManager = new GalleryLibraryManager($libraryPath, $photosDirFs, $thumbnailsDirFs, $sizes);
 
-
-$libraryManager = new GalleryLibraryManager($library, $photos_dir, $thumbnails_dir, $sizes);
 $result = $libraryManager->sync();
 $libraryData = $result['library'];
 $duplicates = $result['duplicates'];
+$thumbnailsMissing = $result['thumbnails_missing'] ?? [];
 
 $libraryManager->save($libraryData);
 

@@ -8,16 +8,31 @@ use Symfony\Component\Yaml\Yaml;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 
+function gallery_base_path(): string
+{
+    $basePath = $GLOBALS['__gallery_base_path__'] ?? '';
+    if (!is_string($basePath)) {
+        return '';
+    }
+
+    if ($basePath === '/' || $basePath === '') {
+        return '';
+    }
+
+    return rtrim($basePath, '/');
+}
+
 function gallery_public_url_path(string $path): string
 {
     $normalized = trim($path);
+    $basePath = gallery_base_path();
 
     if ($normalized === '') {
-        return '/';
+        return $basePath === '' ? '/' : $basePath . '/';
     }
 
     $firstChar = $normalized[0];
-    if ($firstChar === '/' || $firstChar === '#') {
+    if ($firstChar === '#') {
         return $normalized;
     }
 
@@ -25,7 +40,13 @@ function gallery_public_url_path(string $path): string
         return $normalized;
     }
 
-    return '/' . ltrim($normalized, '/\\');
+    if ($firstChar === '/') {
+        $normalizedPath = '/' . ltrim($normalized, '/');
+    } else {
+        $normalizedPath = '/' . ltrim($normalized, '/\\');
+    }
+
+    return $basePath === '' ? $normalizedPath : $basePath . $normalizedPath;
 }
 
 final class GalleryExifHelper
@@ -805,20 +826,19 @@ final class GalleryLibraryManager
     public function sync(): array
     {
         $library = $this->load();
-        $existingHashes = [];
-        foreach ($library as $record) {
-            if (isset($record['hash']) && $record['hash'] !== '') {
-                $existingHashes[$record['hash']] = true;
-            }
-        }
         $duplicates = [];
 
         if ($this->photosDir === '' || !is_dir($this->photosDir)) {
-            return ['library' => $library, 'duplicates' => $duplicates];
+            return [
+                'library' => $library,
+                'duplicates' => $duplicates,
+                'thumbnails_missing' => [],
+            ];
         }
 
         $photoFiles = $this->getPhotoFiles();
 
+        $hashesSeen = [];
         $filenameToId = [];
         foreach ($library as $id => $record) {
             if (isset($record['filename'])) {
@@ -826,12 +846,16 @@ final class GalleryLibraryManager
             }
         }
 
+        $thumbnailsMissing = [];
+
         foreach ($photoFiles as $filename) {
             $photoPath = $this->photosDir . $filename;
             $extension = pathinfo($filename, PATHINFO_EXTENSION);
+            $extensionLower = strtolower((string) $extension);
+            $extensionSuffix = $extensionLower !== '' ? '.' . $extensionLower : '';
             $id = $this->generateId($filename);
             $hash = sha1_file($photoPath) ?: null;
-            if ($hash !== null && isset($existingHashes[$hash])) {
+            if ($hash !== null && isset($hashesSeen[$hash])) {
                 $duplicates[] = [
                     'filename' => $filename,
                     'hash' => $hash,
@@ -857,10 +881,28 @@ final class GalleryLibraryManager
             $current = $library[$id] ?? [];
             $library[$id] = $this->applyRecordDefaults($current, $filename, $width, $height, $exif, $id, $hash);
             if ($hash !== null) {
-                $existingHashes[$hash] = true;
+                $hashesSeen[$hash] = true;
             }
 
             $this->imageProcessor->ensureThumbnails($this->photosDir, $filename, $this->thumbnailsDir, $this->sizes, $id, $extension);
+
+            if (!empty($this->sizes)) {
+                $missing = [];
+                foreach ($this->sizes as $sizeName => $_) {
+                    $sanitizedName = preg_replace('/[^a-z0-9_\-]/i', '', (string) $sizeName);
+                    $expectedPath = $this->thumbnailsDir . $id . '_' . $sanitizedName . $extensionSuffix;
+                    if (!is_file($expectedPath)) {
+                        $missing[] = $expectedPath;
+                    }
+                }
+                if (!empty($missing)) {
+                    $thumbnailsMissing[] = [
+                        'filename' => $filename,
+                        'id' => $id,
+                        'paths' => $missing,
+                    ];
+                }
+            }
         }
 
         foreach ($library as $id => $record) {
@@ -872,7 +914,11 @@ final class GalleryLibraryManager
 
         $this->libraryData = $library;
 
-        return ['library' => $library, 'duplicates' => $duplicates];
+        return [
+            'library' => $library,
+            'duplicates' => $duplicates,
+            'thumbnails_missing' => $thumbnailsMissing,
+        ];
     }
 
     public function findMissingPhotos(): array
@@ -990,6 +1036,8 @@ final class GalleryTemplateRenderer
         $this->twig = $environment ?? new Environment(
             new FilesystemLoader(__DIR__ . '/templates')
         );
+
+        $this->twig->addGlobal('base_path', gallery_base_path());
     }
 
     public function render(string $template, array $context = []): string

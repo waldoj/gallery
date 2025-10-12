@@ -83,7 +83,7 @@ foreach ($libraryData as $photoId => $metadata) {
         'title' => $title,
         'date_taken' => $dateTaken,
         'thumbnail_path' => gallery_public_url_path((string) $thumbnailPath),
-        'link' => '/view/?id=' . rawurlencode($photoIdString),
+        'link' => gallery_public_url_path('/view/?id=' . rawurlencode($photoIdString)),
     ];
 }
 
