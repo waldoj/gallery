@@ -210,6 +210,61 @@ $tests = [
             assertEquals('sample.jpg', $loaded[$expectedId]['filename']);
         });
     },
+
+    'descriptions_page_lists_missing_photos' => function (): void {
+        with_temp_dir(function (string $dir): void {
+            $originalsDir = $dir . '/originals';
+            mkdir($originalsDir);
+            $photosDir = $dir . '/photos';
+            mkdir($photosDir);
+
+            $pngData = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAADUlEQVR42mP8/5+hHgAHggJ/PcJhWQAAAABJRU5ErkJggg==', true);
+            file_put_contents($originalsDir . '/example.png', $pngData);
+
+            $libraryPath = $dir . '/library.yml';
+            (new GalleryYamlRepository())->save($libraryPath, [
+                'example.png' => [
+                    'filename' => 'example.png',
+                    'title' => 'Example',
+                    'description' => '',
+                    'date_taken' => '',
+                ],
+            ]);
+
+            file_put_contents($dir . '/settings.inc.php', "<?php
+" .
+                '$library = ' . var_export('library.yml', true) . ";
+" .
+                '$sizes = ' . var_export(['thumbnail' => 50], true) . ";
+" .
+                '$photos_dir = ' . var_export('originals/', true) . ";
+" .
+                '$thumbnails_dir = ' . var_export('photos/', true) . ";
+"
+            );
+            file_put_contents($dir . '/functions.inc.php', "<?php require_once '" . addslashes(__DIR__ . '/../functions.inc.php') . "';");
+
+            $previousRoot = $GLOBALS['__gallery_root__'] ?? null;
+            $previousCwd = getcwd();
+            $GLOBALS['__gallery_root__'] = $dir;
+            chdir($dir);
+
+            ob_start();
+            include __DIR__ . '/../pages/descriptions.php';
+            $html = ob_get_clean();
+
+            chdir($previousCwd);
+            if ($previousRoot === null) {
+                unset($GLOBALS['__gallery_root__']);
+            } else {
+                $GLOBALS['__gallery_root__'] = $previousRoot;
+            }
+
+            assertTrue(strpos($html, 'Photos Missing Descriptions') !== false, 'Page heading should be present');
+            assertTrue(strpos($html, 'example.png') !== false, 'Filename should be rendered');
+            assertTrue(strpos($html, '<textarea>') !== false, 'YAML textarea should be rendered');
+        });
+    },
     'library_manager_sync_adds_new_files_and_removes_missing' => function (): void {
         with_temp_dir(function (string $dir): void {
             $originalsDir = $dir . '/originals';

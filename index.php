@@ -74,6 +74,9 @@ switch ($route) {
     case 'geolocator':
         require $appRoot . '/pages/geolocator.php';
         break;
+    case 'descriptions':
+        require $appRoot . '/pages/descriptions.php';
+        break;
     case 'view':
         if (!isset($_GET['id']) && !empty($segments[1])) {
             $_GET['id'] = $_REQUEST['id'] = $segments[1];
