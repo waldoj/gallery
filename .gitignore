@@ -6,6 +6,9 @@
 /backups/
 /photos/
 
+# Downloaded map assets
+/assets/vendor/leaflet/
+
 # Local originals (not tracked in repo)
 /originals/
 

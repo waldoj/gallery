@@ -3,9 +3,10 @@
 <head>
     <meta charset="utf-8">
     <title>Charlottesville Photo Gallery</title>
-    <link rel="stylesheet" href="assets/styles.css">
+    <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
+    {% include '_menu.html.twig' %}
     <h1>Charlottesville Photos</h1>
     {% if photos is empty %}
         <p class="empty">No photos found in the library.</p>

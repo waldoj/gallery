@@ -418,6 +418,150 @@ $tests = [
             assertEquals(12, (int) $thumbInfo[0]);
         });
     },
+    'map_page_renders_geolocated_photos' => function (): void {
+        with_temp_dir(function (string $dir): void {
+            $libraryPath = $dir . '/library.yml';
+            $originalsDir = $dir . '/originals';
+            $derivedDir = $dir . '/photos';
+            mkdir($originalsDir);
+            mkdir($derivedDir);
+
+            $libraryData = [
+                'a.jpg' => [
+                    'id' => 'aaaaaa',
+                    'filename' => 'a.jpg',
+                    'title' => 'Has GPS',
+                    'exif' => [
+                        'GPSLatitude' => ['37/1', '48/1', '3000/100'],
+                        'GPSLatitudeRef' => 'N',
+                        'GPSLongitude' => ['122/1', '25/1', '1200/100'],
+                        'GPSLongitudeRef' => 'W',
+                    ],
+                ],
+                'b.jpg' => [
+                    'id' => 'bbbbbb',
+                    'filename' => 'b.jpg',
+                    'title' => 'No GPS',
+                    'exif' => [],
+                ],
+            ];
+
+            (new GalleryYamlRepository())->save($libraryPath, $libraryData);
+
+            // Provide a mock thumbnail so the map can reference it.
+            file_put_contents($derivedDir . '/aaaaaa_thumbnail.jpg', 'thumb');
+
+            file_put_contents($dir . '/settings.inc.php', "<?php\n" .
+                '$library = ' . var_export('library.yml', true) . ";\n" .
+                '$sizes = ' . var_export(['thumbnail' => 150], true) . ";\n" .
+                '$photos_dir = ' . var_export('originals/', true) . ";\n" .
+                '$thumbnails_dir = ' . var_export('photos/', true) . ";\n"
+            );
+            file_put_contents($dir . '/functions.inc.php', "<?php require_once '" . addslashes(__DIR__ . '/../functions.inc.php') . "';");
+
+            $previousRoot = $GLOBALS['__gallery_root__'] ?? null;
+            $previousCwd = getcwd();
+            $GLOBALS['__gallery_root__'] = $dir;
+            chdir($dir);
+
+            ob_start();
+            include __DIR__ . '/../pages/map.php';
+            $html = ob_get_clean();
+
+            chdir($previousCwd);
+            if ($previousRoot === null) {
+                unset($GLOBALS['__gallery_root__']);
+            } else {
+                $GLOBALS['__gallery_root__'] = $previousRoot;
+            }
+
+            assertTrue(strpos($html, 'Has GPS') !== false, 'Map should include photos with GPS data');
+            assertTrue(strpos($html, 'No GPS') === false, 'Map should exclude photos without GPS data');
+            assertTrue(strpos($html, '/view/?id=aaaaaa') !== false, 'Marker popup should link to view page');
+            assertTrue(strpos($html, '_thumbnail') !== false, 'Map popup should include thumbnail image reference');
+            assertTrue(strpos($html, 'class="main-nav"') !== false, 'Map page should include navigation menu');
+        });
+    },
+    'geolocator_page_contains_map_container' => function (): void {
+        $dir = sys_get_temp_dir() . '/geolocator_settings_' . uniqid();
+        mkdir($dir);
+        file_put_contents($dir . '/settings.inc.php', "<?php\n" .
+            '$library = ' . var_export('library.yml', true) . ";\n" .
+            '$sizes = ' . var_export(['thumbnail' => 150], true) . ";\n" .
+            '$photos_dir = ' . var_export('originals/', true) . ";\n" .
+            '$thumbnails_dir = ' . var_export('photos/', true) . ";\n"
+        );
+        file_put_contents($dir . '/functions.inc.php', "<?php require_once '" . addslashes(__DIR__ . '/../functions.inc.php') . "';");
+
+        $previousRoot = $GLOBALS['__gallery_root__'] ?? null;
+        $previousCwd = getcwd();
+        $GLOBALS['__gallery_root__'] = $dir;
+        chdir($dir);
+
+        ob_start();
+        include __DIR__ . '/../pages/geolocator.php';
+        $html = ob_get_clean();
+
+        chdir($previousCwd);
+        if ($previousRoot === null) {
+            unset($GLOBALS['__gallery_root__']);
+        } else {
+            $GLOBALS['__gallery_root__'] = $previousRoot;
+        }
+
+        assertTrue(strpos($html, 'id="geolocator-map"') !== false, 'Geolocator page should include map container');
+        assertTrue(strpos($html, 'GPSLatitudeRef') !== false, 'Geolocator instructions should mention GPS YAML fields');
+        assertTrue(strpos($html, 'class="main-nav"') !== false, 'Geolocator page should include navigation menu');
+    },
+    'router_serves_view_path_segment' => function (): void {
+        $previousRequest = $_SERVER['REQUEST_URI'] ?? null;
+        $previousGet = $_GET ?? [];
+        $previousRequestArray = $_REQUEST ?? [];
+
+        $_SERVER['REQUEST_URI'] = '/view/3bb2a5';
+        $_GET = [];
+        $_REQUEST = [];
+
+        ob_start();
+        include __DIR__ . '/../index.php';
+        $html = ob_get_clean();
+
+        if ($previousRequest === null) {
+            unset($_SERVER['REQUEST_URI']);
+        } else {
+            $_SERVER['REQUEST_URI'] = $previousRequest;
+        }
+        $_GET = $previousGet;
+        $_REQUEST = $previousRequestArray;
+
+        assertTrue(strpos($html, 'Rachel playing cards') !== false, 'View page should render when path contains the id');
+    },
+    'view_directory_index_serves_photos' => function (): void {
+        $originalCwd = getcwd();
+        $originalRequest = $_SERVER['REQUEST_URI'] ?? null;
+        $originalGet = $_GET ?? [];
+        $originalRequestArray = $_REQUEST ?? [];
+
+        chdir(__DIR__ . '/../view');
+        $_SERVER['REQUEST_URI'] = '/view/?id=3bb2a5';
+        $_GET = ['id' => '3bb2a5'];
+        $_REQUEST = $_GET;
+
+        ob_start();
+        include 'index.php';
+        $html = ob_get_clean();
+
+        chdir($originalCwd);
+        if ($originalRequest === null) {
+            unset($_SERVER['REQUEST_URI']);
+        } else {
+            $_SERVER['REQUEST_URI'] = $originalRequest;
+        }
+        $_GET = $originalGet;
+        $_REQUEST = $originalRequestArray;
+
+        assertTrue(strpos($html, 'Rachel playing cards') !== false, 'View directory index should render the photo');
+    },
 ];
 
 $passed = 0;

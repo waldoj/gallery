@@ -6,8 +6,10 @@ declare(strict_types=1);
  * Renders a single photo and its metadata using $_REQUEST['id'] as the unique identifier.
  */
 
-require_once __DIR__ . '/settings.inc.php';
-require_once __DIR__ . '/functions.inc.php';
+$appRoot = $GLOBALS['__gallery_root__'] ?? dirname(__DIR__);
+
+require $appRoot . '/settings.inc.php';
+require_once $appRoot . '/functions.inc.php';
 
 $photoId = isset($_REQUEST['id']) ? basename((string) $_REQUEST['id']) : null;
 
@@ -16,7 +18,11 @@ if ($photoId === null || $photoId === '') {
     die('Missing required photo id.');
 }
 
-$libraryManager = new GalleryLibraryManager($library, $photos_dir, $thumbnails_dir, $sizes);
+$libraryPath = rtrim($appRoot, '/\\') . '/' . ltrim($library, '/\\');
+$photosDirFs = rtrim($appRoot, '/\\') . '/' . trim($photos_dir, '/\\') . '/';
+$thumbnailsDirFs = rtrim($appRoot, '/\\') . '/' . trim($thumbnails_dir, '/\\') . '/';
+
+$libraryManager = new GalleryLibraryManager($libraryPath, $photosDirFs, $thumbnailsDirFs, $sizes);
 $libraryData = $libraryManager->load();
 
 if (!isset($libraryData[$photoId]) || !is_array($libraryData[$photoId])) {
@@ -33,7 +39,8 @@ if ($filename === null) {
 }
 
 $originalPath = $photos_dir . $filename;
-if (!is_file($originalPath)) {
+$originalFsPath = $photosDirFs . $filename;
+if (!is_file($originalFsPath)) {
     http_response_code(404);
     die('Photo file not found.');
 }
@@ -46,24 +53,27 @@ $preferredSizes = ['large', 'medium', 'thumbnail'];
 $displayPath = null;
 
 foreach ($preferredSizes as $sizeName) {
-    $candidate = $thumbnails_dir . $photoIdString . '_' . $sizeName . $extensionSuffix;
-    if (is_file($candidate)) {
-        $displayPath = $candidate;
+    $candidateFs = $thumbnailsDirFs . $photoIdString . '_' . $sizeName . $extensionSuffix;
+    if (is_file($candidateFs)) {
+        $displayPath = $thumbnails_dir . $photoIdString . '_' . $sizeName . $extensionSuffix;
         break;
     }
 }
 
 if ($displayPath === null) {
     foreach ($sizes as $sizeName => $_) {
-        $candidate = $thumbnails_dir . $photoIdString . '_' . preg_replace('/[^a-z0-9_\-]/i', '', (string) $sizeName) . $extensionSuffix;
-        if (is_file($candidate)) {
-            $displayPath = $candidate;
+        $cleanName = preg_replace('/[^a-z0-9_\-]/i', '', (string) $sizeName);
+        $candidateFs = $thumbnailsDirFs . $photoIdString . '_' . $cleanName . $extensionSuffix;
+        if (is_file($candidateFs)) {
+            $displayPath = $thumbnails_dir . $photoIdString . '_' . $cleanName . $extensionSuffix;
             break;
         }
     }
 }
 
 $photoPath = $displayPath ?? $originalPath;
+$photoUrl = gallery_public_url_path($photoPath);
+$downloadUrl = gallery_public_url_path($originalPath);
 
 $title = $photoMetadata['title'] ?? pathinfo($filename, PATHINFO_FILENAME);
 $description = $photoMetadata['description'] ?? '';
@@ -126,9 +136,9 @@ echo $renderer->render('view.html.twig', [
     'title' => $title,
     'description' => $description,
     'date_taken' => $dateTaken,
-    'photo_path' => $photoPath,
+    'photo_path' => $photoUrl,
     'detail_fields' => $detailFields,
-    'download_url' => $originalPath,
+    'download_url' => $downloadUrl,
     'map_lat' => $mapLat,
     'map_lon' => $mapLon,
     'map_direction_angle' => $mapDirectionAngle,

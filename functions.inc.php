@@ -8,6 +8,26 @@ use Symfony\Component\Yaml\Yaml;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 
+function gallery_public_url_path(string $path): string
+{
+    $normalized = trim($path);
+
+    if ($normalized === '') {
+        return '/';
+    }
+
+    $firstChar = $normalized[0];
+    if ($firstChar === '/' || $firstChar === '#') {
+        return $normalized;
+    }
+
+    if (preg_match('/^[a-z][a-z0-9+\-.]*:/i', $normalized) === 1) {
+        return $normalized;
+    }
+
+    return '/' . ltrim($normalized, '/\\');
+}
+
 final class GalleryExifHelper
 {
     public static function read(string $imagePath): array
@@ -679,6 +699,13 @@ final class GalleryLibraryNormalizer
                 ? (string) $record['date_taken']
                 : '';
 
+            if ($record['date_taken'] === '' && isset($record['exif']['Model'], $record['exif']['DateTimeOriginal'])) {
+                $parsed = self::formatExifDate($record['exif']['DateTimeOriginal']);
+                if ($parsed !== null) {
+                    $record['date_taken'] = $parsed;
+                }
+            }
+
             $record['author'] = array_key_exists('author', $record) && $record['author'] !== ''
                 ? (string) $record['author']
                 : 'Waldo Jaquith';
@@ -719,6 +746,22 @@ final class GalleryLibraryNormalizer
         }
 
         return $value === null ? null : null;
+    }
+
+    private static function formatExifDate(string $raw): ?string
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+
+        $raw = str_replace(['.', '\\', ' '], [':', ':', ' '], $raw);
+        $dateTime = DateTime::createFromFormat('Y:m:d H:i:s', $raw);
+        if ($dateTime === false) {
+            return null;
+        }
+
+        return $dateTime->format('F j, Y');
     }
 }
 
@@ -869,6 +912,13 @@ final class GalleryLibraryManager
         $record['date_taken'] = array_key_exists('date_taken', $record)
             ? (string) $record['date_taken']
             : '';
+
+        if ($record['date_taken'] === '' && isset($exif['Model'], $exif['DateTimeOriginal'])) {
+            $parsed = self::formatExifDate($exif['DateTimeOriginal']);
+            if ($parsed !== null) {
+                $record['date_taken'] = $parsed;
+            }
+        }
 
         if ($width !== null) {
             $record['width'] = $width;
