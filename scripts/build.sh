@@ -19,9 +19,39 @@ curl -sfLo "${LEAFLET_DIR}/images/marker-icon.png" "https://unpkg.com/leaflet@${
 curl -sfLo "${LEAFLET_DIR}/images/marker-icon-2x.png" "https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/images/marker-icon-2x.png"
 curl -sfLo "${LEAFLET_DIR}/images/marker-shadow.png" "https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/images/marker-shadow.png"
 
+echo "==> Verifying GD/Imagick availability"
+if ! php -r "if (!function_exists('imagecreatefromjpeg') || !function_exists('imagecreatetruecolor') || !function_exists('imagecopyresampled')) { exit(1); }"; then
+  echo "ERROR: Required GD functions (imagecreatefromjpeg, imagecreatetruecolor, imagecopyresampled) are missing." >&2
+  echo "Install/enable the PHP GD extension with JPEG support before running the build." >&2
+  exit 1
+fi
+
+if ! php -r "if (!class_exists('Imagick')) { exit(1); }"; then
+  echo "WARNING: Imagick extension not found. Falling back to GD only." >&2
+fi
+
+PHOTOS_DIR="${ROOT_DIR}/photos"
+if [ ! -d "${PHOTOS_DIR}" ]; then
+  mkdir -p "${PHOTOS_DIR}"
+fi
+
+if [ ! -w "${PHOTOS_DIR}" ]; then
+  echo "ERROR: Directory '${PHOTOS_DIR}' is not writable. Thumbnails cannot be generated." >&2
+  exit 1
+fi
+
 if [ -f "${ROOT_DIR}/library.yml" ]; then
   echo "==> Updating library metadata"
   php "${ROOT_DIR}/updater.php"
+fi
+
+ORIGINALS_DIR="${ROOT_DIR}/originals"
+if find "${ORIGINALS_DIR}" -maxdepth 1 -type f 2>/dev/null | grep -q .; then
+  if ! find "${PHOTOS_DIR}" -maxdepth 1 -type f 2>/dev/null | grep -q .; then
+    echo "ERROR: No thumbnails found in '${PHOTOS_DIR}' after updater ran." >&2
+    echo "Ensure originals are readable and that GD/Imagick can process them." >&2
+    exit 1
+  fi
 fi
 
 echo "Build completed successfully."

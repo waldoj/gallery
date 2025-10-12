@@ -107,6 +107,47 @@ $tests = [
         $expected = "photo1:\n  title: Example\n  published: true\nphoto2: value\n";
         assertEquals($expected, $repository->dump($input));
     },
+    'image_processor_generates_thumbnail' => function (): void {
+        $requiredFunctions = [
+            'imagecreatetruecolor',
+            'imagecopyresampled',
+            'imagecreatefrompng',
+            'imagepng',
+        ];
+        foreach ($requiredFunctions as $fn) {
+            if (!function_exists($fn)) {
+                // Skip silently when GD is unavailable.
+                return;
+            }
+        }
+
+        with_temp_dir(function (string $dir): void {
+            $originalsDir = $dir . '/originals';
+            $thumbnailsDir = $dir . '/photos';
+            mkdir($originalsDir);
+            mkdir($thumbnailsDir);
+
+            $originalFilename = 'sample.png';
+            $originalPath = $originalsDir . '/' . $originalFilename;
+
+            $image = imagecreatetruecolor(4, 4);
+            assertTrue($image !== false, 'Failed to create source image');
+            $red = imagecolorallocate($image, 255, 0, 0);
+            imagefill($image, 0, 0, $red);
+            assertTrue(imagepng($image, $originalPath) === true, 'Failed to write source PNG');
+            imagedestroy($image);
+
+            $processor = new GalleryImageProcessor();
+            $sizes = ['thumbnail' => 1];
+            $processor->ensureThumbnails($originalsDir . '/', $originalFilename, $thumbnailsDir . '/', $sizes, 'abc123', 'png');
+
+            $thumbPath = $thumbnailsDir . '/abc123_thumbnail.png';
+            assertTrue(is_file($thumbPath), 'Thumbnail file should be created');
+            $info = getimagesize($thumbPath);
+            assertTrue($info !== false, 'Generated thumbnail should be a valid image');
+            assertTrue((int) $info[0] <= 1 && (int) $info[1] <= 1, 'Thumbnail dimensions should match requested size');
+        });
+    },
     'yaml_repository_load_parses_yaml' => function (): void {
         with_temp_dir(function (string $dir): void {
             $yamlPath = $dir . '/library.yml';
@@ -190,6 +231,7 @@ $tests = [
             $result = $manager->sync();
             $synced = $result['library'];
             assertEquals([], $result['duplicates']);
+            assertEquals([], $result['thumbnails_missing']);
 
             $newId = substr(hash('sha1', 'new.png'), -6);
             $oldId = substr(hash('sha1', 'old.jpg'), -6);
@@ -229,6 +271,7 @@ $tests = [
             $result = $manager->sync();
             $synced = $result['library'];
             assertEquals([], $result['duplicates']);
+            assertEquals([], $result['thumbnails_missing']);
 
             $existingId = substr(hash('sha1', 'existing.png'), -6);
             assertArrayHasKey($existingId, $synced);
@@ -253,6 +296,7 @@ $tests = [
             $result = $manager->sync();
             $synced = $result['library'];
             assertEquals([], $result['duplicates']);
+            assertEquals([], $result['thumbnails_missing']);
 
             $normalized = GalleryLibraryNormalizer::normalize($source);
             assertEquals($normalized, $synced);

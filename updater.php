@@ -47,4 +47,15 @@ if (!empty($duplicates)) {
     }
 }
 
+if (!empty($thumbnailsMissing)) {
+    echo "The following thumbnails could not be generated:\n";
+    foreach ($thumbnailsMissing as $failure) {
+        $filename = $failure['filename'] ?? '(unknown)';
+        echo sprintf("- %s (id %s)\n", $filename, (string) ($failure['id'] ?? 'n/a'));
+        foreach ($failure['paths'] ?? [] as $path) {
+            echo sprintf("    missing: %s\n", $path);
+        }
+    }
+}
+
 echo "Library updated.\n";
