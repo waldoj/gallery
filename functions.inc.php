@@ -791,6 +791,7 @@ final class GalleryLibraryManager
     private string $photosDir;
     private string $thumbnailsDir;
     private array $libraryData = [];
+    private array $unsupportedPhotoFiles = [];
 
     public function __construct(
         private readonly string $libraryPath,
@@ -833,6 +834,7 @@ final class GalleryLibraryManager
                 'library' => $library,
                 'duplicates' => $duplicates,
                 'thumbnails_missing' => [],
+                'unsupported_files' => $this->getUnsupportedPhotoFiles(),
             ];
         }
 
@@ -918,6 +920,7 @@ final class GalleryLibraryManager
             'library' => $library,
             'duplicates' => $duplicates,
             'thumbnails_missing' => $thumbnailsMissing,
+            'unsupported_files' => $this->getUnsupportedPhotoFiles(),
         ];
     }
 
@@ -998,6 +1001,8 @@ final class GalleryLibraryManager
 
     private function getPhotoFiles(): array
     {
+        $this->unsupportedPhotoFiles = [];
+
         if ($this->photosDir === '' || !is_dir($this->photosDir)) {
             return [];
         }
@@ -1015,7 +1020,10 @@ final class GalleryLibraryManager
 
             if (GalleryImageProcessor::isPhotoFile($file)) {
                 $photos[] = $file;
+                continue;
             }
+
+            $this->unsupportedPhotoFiles[] = $file;
         }
 
         return $photos;
@@ -1024,6 +1032,11 @@ final class GalleryLibraryManager
     private function generateId(string $filename): string
     {
         return substr(hash('sha1', $filename), -6);
+    }
+
+    public function getUnsupportedPhotoFiles(): array
+    {
+        return $this->unsupportedPhotoFiles;
     }
 }
 

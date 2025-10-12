@@ -232,6 +232,7 @@ $tests = [
             $synced = $result['library'];
             assertEquals([], $result['duplicates']);
             assertEquals([], $result['thumbnails_missing']);
+            assertEquals([], $result['unsupported_files']);
 
             $newId = substr(hash('sha1', 'new.png'), -6);
             $oldId = substr(hash('sha1', 'old.jpg'), -6);
@@ -272,6 +273,7 @@ $tests = [
             $synced = $result['library'];
             assertEquals([], $result['duplicates']);
             assertEquals([], $result['thumbnails_missing']);
+            assertEquals([], $result['unsupported_files']);
 
             $existingId = substr(hash('sha1', 'existing.png'), -6);
             assertArrayHasKey($existingId, $synced);
@@ -286,6 +288,25 @@ $tests = [
             assertEquals('CC BY-NC-SA 4.0', $synced[$existingId]['license']);
         });
     },
+
+    'library_manager_sync_reports_unsupported_files' => function (): void {
+        with_temp_dir(function (string $dir): void {
+            $originalsDir = $dir . '/originals';
+            mkdir($originalsDir);
+            file_put_contents($originalsDir . '/photo.heic', 'not-a-photo');
+
+            $libraryPath = $dir . '/library.yml';
+            (new GalleryYamlRepository())->save($libraryPath, []);
+
+            $manager = new GalleryLibraryManager($libraryPath, $originalsDir, $dir . '/photos', []);
+            $result = $manager->sync();
+
+            assertEquals([], $result['library']);
+            assertEquals([], $result['thumbnails_missing']);
+            assertEquals([], $result['duplicates']);
+            assertTrue(in_array('photo.heic', $result['unsupported_files'], true));
+        });
+    },
     'library_manager_sync_returns_original_when_photos_dir_missing' => function (): void {
         with_temp_dir(function (string $dir): void {
             $libraryPath = $dir . '/library.yml';
@@ -297,6 +318,7 @@ $tests = [
             $synced = $result['library'];
             assertEquals([], $result['duplicates']);
             assertEquals([], $result['thumbnails_missing']);
+            assertEquals([], $result['unsupported_files']);
 
             $normalized = GalleryLibraryNormalizer::normalize($source);
             assertEquals($normalized, $synced);

@@ -37,6 +37,7 @@ $result = $libraryManager->sync();
 $libraryData = $result['library'];
 $duplicates = $result['duplicates'];
 $thumbnailsMissing = $result['thumbnails_missing'] ?? [];
+$unsupportedFiles = $result['unsupported_files'] ?? [];
 
 $libraryManager->save($libraryData);
 
@@ -55,6 +56,13 @@ if (!empty($thumbnailsMissing)) {
         foreach ($failure['paths'] ?? [] as $path) {
             echo sprintf("    missing: %s\n", $path);
         }
+    }
+}
+
+if (!empty($unsupportedFiles)) {
+    echo "Unsupported image files were skipped:\n";
+    foreach ($unsupportedFiles as $file) {
+        echo sprintf("- %s\n", $file);
     }
 }
 
