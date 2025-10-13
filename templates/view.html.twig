@@ -72,7 +72,7 @@
                     <input type="text" id="photo-editor-title-input" name="title" required value="{{ title|e('html_attr') }}">
 
                     <label for="photo-editor-description-input">Description</label>
-                    <textarea id="photo-editor-description-input" name="description" rows="6">{{ raw_description|default('')|e }}</textarea>
+                    <textarea id="photo-editor-description-input" name="description" rows="4">{{ raw_description|default('')|e }}</textarea>
 
                     <label for="photo-editor-date-input">Date taken</label>
                     <input type="text" id="photo-editor-date-input" name="date_taken" value="{{ date_taken|default('')|e('html_attr') }}">
