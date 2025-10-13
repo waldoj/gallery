@@ -7,26 +7,28 @@ $appRoot = $GLOBALS['__gallery_root__'] ?? dirname(__DIR__);
 require $appRoot . '/settings.inc.php';
 require_once $appRoot . '/functions.inc.php';
 
-// Resolve filesystem paths for the library and photo directories.
-$libraryPath = rtrim($appRoot, '/\\') . '/' . ltrim($library, '/\\');
+// Resolve filesystem paths for the photo and thumbnail directories.
 $photosDirFs = rtrim($appRoot, '/\\') . '/' . trim($photos_dir, '/\\') . '/';
 $thumbnailsDirFs = rtrim($appRoot, '/\\') . '/' . trim($thumbnails_dir, '/\\') . '/';
 
-// Load all photo metadata via the library manager so we can render the gallery.
-$libraryManager = new GalleryLibraryManager($libraryPath, $photosDirFs, $thumbnailsDirFs, $sizes);
-$libraryData = $libraryManager->load();
+$databasePath = rtrim($appRoot, '/\\') . '/' . ltrim($database_path ?? 'gallery.db', '/\\');
+
+try {
+    $database = new GalleryDatabase($databasePath);
+    $libraryData = $database->getAllPhotos();
+} catch (Throwable $throwable) {
+    $libraryData = [];
+}
 
 $photos = [];
 
-// Walk each record and pick out the information needed for the gallery grid.
-foreach ($libraryData as $photoId => $metadata) {
-    if (!is_array($metadata)) {
+foreach ($libraryData as $record) {
+    $photoIdString = (string) ($record['id'] ?? '');
+    if ($photoIdString === '') {
         continue;
     }
 
-    $photoIdString = (string) $photoId;
-
-    $filename = $metadata['filename'] ?? null;
+    $filename = $record['filename'] ?? null;
     if ($filename === null) {
         continue;
     }
@@ -34,7 +36,7 @@ foreach ($libraryData as $photoId => $metadata) {
     $extension = strtolower((string) pathinfo($filename, PATHINFO_EXTENSION));
     $extensionSuffix = $extension !== '' ? '.' . $extension : '';
 
-    $idForFile = (string) ($metadata['id'] ?? $photoIdString);
+    $idForFile = $photoIdString;
     $thumbnailPath = null;
 
     // Prefer a "thumbsquare" or "thumbnail" derivative, then fall back to other sizes.
@@ -77,8 +79,8 @@ foreach ($libraryData as $photoId => $metadata) {
     }
 
     // Collect the fields the template needs to display each card.
-    $title = isset($metadata['title']) && $metadata['title'] !== '' ? $metadata['title'] : 'Untitled';
-    $dateTaken = isset($metadata['date_taken']) && $metadata['date_taken'] !== '' ? $metadata['date_taken'] : 'Unknown date';
+    $title = isset($record['title']) && $record['title'] !== '' ? $record['title'] : 'Untitled';
+    $dateTaken = isset($record['date_taken']) && $record['date_taken'] !== '' ? $record['date_taken'] : 'Unknown date';
 
     $photos[] = [
         'id' => $idForFile,

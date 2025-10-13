@@ -3,8 +3,6 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/vendor/autoload.php';
-use Symfony\Component\Yaml\Exception\ParseException;
-use Symfony\Component\Yaml\Yaml;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 
@@ -142,53 +140,6 @@ final class GalleryExifHelper
             'latitude' => $latitude,
             'longitude' => $longitude,
         ];
-    }
-}
-
-final class GalleryYamlRepository
-{
-    public function load(string $path): array
-    {
-        if (!is_file($path)) {
-            return [];
-        }
-
-        try {
-            $data = Yaml::parseFile($path);
-        } catch (ParseException $exception) {
-            throw new RuntimeException(
-                'Unable to parse YAML file: ' . $path . '. ' . $exception->getMessage(),
-                0,
-                $exception
-            );
-        }
-
-        if ($data === null) {
-            return [];
-        }
-
-        if (!is_array($data)) {
-            throw new RuntimeException('Unexpected YAML structure in file: ' . $path);
-        }
-
-        return $data;
-    }
-
-    public function dump(array $data): string
-    {
-        return Yaml::dump($data, 4, 2);
-    }
-
-    public function save(string $path, array $data): void
-    {
-        $yaml = $this->dump($data);
-        if (!str_ends_with($yaml, "\n")) {
-            $yaml .= "\n";
-        }
-
-        if (@file_put_contents($path, $yaml) === false) {
-            throw new RuntimeException('Unable to write library file: ' . $path);
-        }
     }
 }
 
@@ -391,16 +342,9 @@ final class GalleryImageProcessor
 
         [$createCallback, $saveCallback] = $callbacks;
 
-        $sourceImage = null;
-        $imageData = @file_get_contents($photoPath);
-        if ($imageData !== false) {
-            $sourceImage = @imagecreatefromstring($imageData);
-        }
-        if ($sourceImage === false || $sourceImage === null) {
-            $sourceImage = @$createCallback($photoPath);
-        }
-        if ($sourceImage === false || $sourceImage === null) {
-            return (bool) @copy($photoPath, $thumbnailPath);
+        $sourceImage = @$createCallback($photoPath);
+        if ($sourceImage === false) {
+            return false;
         }
 
         $square = @imagecreatetruecolor($size, $size);
@@ -784,356 +728,144 @@ final class GalleryImageProcessor
     }
 }
 
-final class GalleryLibraryNormalizer
+final class GalleryDatabase
 {
-    public static function normalize(array $data): array
+    private SQLite3 $connection;
+
+    public function __construct(string $databasePath)
     {
-        $normalized = [];
-
-        foreach ($data as $key => $record) {
-            if (!is_array($record)) {
-                $record = [
-                    'title' => is_scalar($record) ? (string) $record : '',
-                ];
-            }
-
-            $filename = isset($record['filename']) && $record['filename'] !== ''
-                ? (string) $record['filename']
-                : (string) $key;
-
-            $id = isset($record['id']) && $record['id'] !== ''
-                ? (string) $record['id']
-                : substr(hash('sha1', $filename), -6);
-
-            $record['title'] = isset($record['title']) && $record['title'] !== ''
-                ? (string) $record['title']
-                : pathinfo($filename, PATHINFO_FILENAME);
-
-            $record['description'] = array_key_exists('description', $record)
-                ? (string) $record['description']
-                : '';
-
-            $record['date_taken'] = array_key_exists('date_taken', $record)
-                ? (string) $record['date_taken']
-                : '';
-
-            if ($record['date_taken'] === '' && isset($record['exif']['Model'], $record['exif']['DateTimeOriginal'])) {
-                $parsed = self::formatExifDate($record['exif']['DateTimeOriginal']);
-                if ($parsed !== null) {
-                    $record['date_taken'] = $parsed;
-                }
-            }
-
-            $record['author'] = array_key_exists('author', $record) && $record['author'] !== ''
-                ? (string) $record['author']
-                : 'Waldo Jaquith';
-
-            $record['license'] = array_key_exists('license', $record) && $record['license'] !== ''
-                ? (string) $record['license']
-                : 'CC BY-NC-SA 4.0';
-
-            $record['width'] = self::normalizeDimension($record['width'] ?? null);
-            $record['height'] = self::normalizeDimension($record['height'] ?? null);
-
-            if (!isset($record['exif']) || !is_array($record['exif'])) {
-                $record['exif'] = [];
-            }
-
-            $record['filename'] = $filename;
-            $record['id'] = $id;
-
-            $normalized[$id] = $record;
+        if (!is_file($databasePath)) {
+            throw new RuntimeException('Database not found at ' . $databasePath);
         }
 
-        return $normalized;
+        $this->connection = new SQLite3($databasePath, SQLITE3_OPEN_READONLY);
+        $this->connection->enableExceptions(true);
+        $this->connection->exec('PRAGMA foreign_keys = ON');
     }
 
-    private static function normalizeDimension(mixed $value): ?int
+    public function __destruct()
     {
-        if (is_numeric($value)) {
-            $intValue = (int) $value;
-            return $intValue >= 0 ? $intValue : null;
+        if (isset($this->connection)) {
+            $this->connection->close();
         }
-
-        if (is_string($value) && strtolower($value) === 'null') {
-            return null;
-        }
-
-        if (is_array($value) && empty($value)) {
-            return null;
-        }
-
-        return $value === null ? null : null;
     }
 
-    private static function formatExifDate(string $raw): ?string
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getAllPhotos(): array
     {
-        $raw = trim($raw);
-        if ($raw === '') {
-            return null;
-        }
-
-        $raw = str_replace(['.', '\\', ' '], [':', ':', ' '], $raw);
-        $dateTime = DateTime::createFromFormat('Y:m:d H:i:s', $raw);
-        if ($dateTime === false) {
-            return null;
-        }
-
-        return $dateTime->format('F j, Y');
-    }
-}
-
-final class GalleryLibraryManager
-{
-    private string $photosDir;
-    private string $thumbnailsDir;
-    private array $libraryData = [];
-    private array $unsupportedPhotoFiles = [];
-
-    public function __construct(
-        private readonly string $libraryPath,
-        string $photosDir,
-        string $thumbnailsDir,
-        private readonly array $sizes = [],
-        private ?GalleryYamlRepository $repository = null,
-        private ?GalleryImageProcessor $imageProcessor = null
-    ) {
-        $this->repository = $this->repository ?? new GalleryYamlRepository();
-        $this->imageProcessor = $this->imageProcessor ?? new GalleryImageProcessor();
-
-        $photosDir = rtrim($photosDir, "/\\");
-        $this->photosDir = $photosDir === '' ? '' : $photosDir . DIRECTORY_SEPARATOR;
-
-        $thumbnailsDir = rtrim($thumbnailsDir, "/\\");
-        $this->thumbnailsDir = $thumbnailsDir === '' ? '' : $thumbnailsDir . DIRECTORY_SEPARATOR;
+        $sql = 'SELECT id, filename, title, description, date_taken, width, height, hash, author, license,
+                       gps_latitude, gps_longitude, gps_img_direction, gps_img_direction_ref
+                FROM photos
+                ORDER BY date_taken DESC, id';
+        return $this->fetchAllAssoc($sql);
     }
 
-    public function load(): array
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getPhotosWithLocation(): array
     {
-        $rawData = $this->repository->load($this->libraryPath);
-        $this->libraryData = GalleryLibraryNormalizer::normalize($rawData);
-        return $this->libraryData;
+        $sql = 'SELECT id, filename, title, gps_latitude, gps_longitude, gps_img_direction, gps_img_direction_ref
+                FROM photos
+                WHERE gps_latitude IS NOT NULL AND gps_longitude IS NOT NULL';
+        return $this->fetchAllAssoc($sql);
     }
 
-    public function save(?array $data = null): void
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getPhotosMissingDescription(): array
     {
-        $data = $data ?? $this->libraryData;
-        $this->repository->save($this->libraryPath, $data);
+        $sql = 'SELECT id, filename, title, description, date_taken
+                FROM photos
+                WHERE description IS NULL OR trim(description) = \'\'';
+        return $this->fetchAllAssoc($sql);
     }
 
-    public function sync(): array
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getPhotoById(string $photoId): ?array
     {
-        $library = $this->load();
-        $duplicates = [];
-
-        if ($this->photosDir === '' || !is_dir($this->photosDir)) {
-            return [
-                'library' => $library,
-                'duplicates' => $duplicates,
-                'thumbnails_missing' => [],
-                'unsupported_files' => $this->getUnsupportedPhotoFiles(),
-            ];
-        }
-
-        $photoFiles = $this->getPhotoFiles();
-
-        $hashesSeen = [];
-        $filenameToId = [];
-        foreach ($library as $id => $record) {
-            if (isset($record['filename'])) {
-                $filenameToId[$record['filename']] = $id;
-            }
-        }
-
-        $thumbnailsMissing = [];
-
-        foreach ($photoFiles as $filename) {
-            $photoPath = $this->photosDir . $filename;
-            $extension = pathinfo($filename, PATHINFO_EXTENSION);
-            $extensionLower = strtolower((string) $extension);
-            $extensionSuffix = $extensionLower !== '' ? '.' . $extensionLower : '';
-            $id = $this->generateId($filename);
-            $hash = sha1_file($photoPath) ?: null;
-            if ($hash !== null && isset($hashesSeen[$hash])) {
-                $duplicates[] = [
-                    'filename' => $filename,
-                    'hash' => $hash,
-                ];
-                continue;
-            }
-
-            $exif = GalleryExifHelper::read($photoPath);
-            $orientationAdjusted = $this->imageProcessor->normalizeOrientation($photoPath, $exif);
-            if ($orientationAdjusted) {
-                $this->imageProcessor->clearThumbnails($id, $this->thumbnailsDir, $this->sizes, $extension, $filename);
-            }
-            [$width, $height] = $this->imageProcessor->getDimensions($photoPath);
-
-            if (!isset($library[$id]) && isset($filenameToId[$filename])) {
-                $existingId = $filenameToId[$filename];
-                $library[$id] = $library[$existingId];
-                if ($existingId !== $id) {
-                    unset($library[$existingId]);
-                }
-            }
-
-            $current = $library[$id] ?? [];
-            $library[$id] = $this->applyRecordDefaults($current, $filename, $width, $height, $exif, $id, $hash);
-            if ($hash !== null) {
-                $hashesSeen[$hash] = true;
-            }
-
-            $this->imageProcessor->ensureThumbnails($this->photosDir, $filename, $this->thumbnailsDir, $this->sizes, $id, $extension);
-
-            if (!empty($this->sizes)) {
-                $missing = [];
-                foreach ($this->sizes as $sizeName => $_) {
-                    $sanitizedName = preg_replace('/[^a-z0-9_\-]/i', '', (string) $sizeName);
-                    $expectedPath = $this->thumbnailsDir . $id . '_' . $sanitizedName . $extensionSuffix;
-                    if (!is_file($expectedPath)) {
-                        $missing[] = $expectedPath;
-                    }
-                }
-                if (!empty($missing)) {
-                    $thumbnailsMissing[] = [
-                        'filename' => $filename,
-                        'id' => $id,
-                        'paths' => $missing,
-                    ];
-                }
-            }
-        }
-
-        foreach ($library as $id => $record) {
-            $filename = $record['filename'] ?? null;
-            if ($filename === null || !in_array($filename, $photoFiles, true)) {
-                unset($library[$id]);
-            }
-        }
-
-        $this->libraryData = $library;
-
-        return [
-            'library' => $library,
-            'duplicates' => $duplicates,
-            'thumbnails_missing' => $thumbnailsMissing,
-            'unsupported_files' => $this->getUnsupportedPhotoFiles(),
-        ];
-    }
-
-    public function findMissingPhotos(): array
-    {
-        $library = $this->load();
-
-        if ($this->photosDir === '' || !is_dir($this->photosDir)) {
-            return [];
-        }
-
-        $photoFiles = $this->getPhotoFiles();
-        $libraryFiles = array_map(
-            static fn (array $record): string => (string) ($record['filename'] ?? ''),
-            $library
+        $stmt = $this->connection->prepare(
+            'SELECT id, filename, title, description, date_taken,
+                    width, height, hash, author, license,
+                    gps_latitude, gps_longitude, gps_img_direction, gps_img_direction_ref
+             FROM photos WHERE id = :id'
         );
-
-        return array_values(array_diff($photoFiles, $libraryFiles));
+        $stmt->bindValue(':id', $photoId, SQLITE3_TEXT);
+        $result = $stmt->execute();
+        if ($result === false) {
+            return null;
+        }
+        $row = $result->fetchArray(SQLITE3_ASSOC);
+        $result->finalize();
+        return $row !== false ? $row : null;
     }
 
-    private function applyRecordDefaults(
-        array $record,
-        string $filename,
-        ?int $width,
-        ?int $height,
-        array $exif,
-        string $id,
-        ?string $hash = null
-    ): array {
-        $record['title'] = isset($record['title']) && $record['title'] !== ''
-            ? (string) $record['title']
-            : pathinfo($filename, PATHINFO_FILENAME);
-
-        $record['description'] = array_key_exists('description', $record)
-            ? (string) $record['description']
-            : '';
-
-        $record['date_taken'] = array_key_exists('date_taken', $record)
-            ? (string) $record['date_taken']
-            : '';
-
-        if ($record['date_taken'] === '' && isset($exif['Model'], $exif['DateTimeOriginal'])) {
-            $parsed = self::formatExifDate($exif['DateTimeOriginal']);
-            if ($parsed !== null) {
-                $record['date_taken'] = $parsed;
-            }
-        }
-
-        if ($width !== null) {
-            $record['width'] = $width;
-        } elseif (!isset($record['width'])) {
-            $record['width'] = null;
-        }
-
-        if ($height !== null) {
-            $record['height'] = $height;
-        } elseif (!isset($record['height'])) {
-            $record['height'] = null;
-        }
-
-        $record['exif'] = $exif;
-        $record['filename'] = $filename;
-        $record['id'] = $id;
-        if ($hash !== null) {
-            $record['hash'] = $hash;
-        }
-
-        if (!isset($record['author']) || $record['author'] === '') {
-            $record['author'] = 'Waldo Jaquith';
-        }
-
-        if (!isset($record['license']) || $record['license'] === '') {
-            $record['license'] = 'CC BY-NC-SA 4.0';
-        }
-
-        return $record;
-    }
-
-    private function getPhotoFiles(): array
+    /**
+     * @return array<string, mixed>
+     */
+    public function getExifByPhotoId(string $photoId): array
     {
-        $this->unsupportedPhotoFiles = [];
-
-        if ($this->photosDir === '' || !is_dir($this->photosDir)) {
+        $stmt = $this->connection->prepare(
+            'SELECT tag, value, sequence
+             FROM photo_exif
+             WHERE photo_id = :id
+             ORDER BY tag, sequence'
+        );
+        $stmt->bindValue(':id', $photoId, SQLITE3_TEXT);
+        $result = $stmt->execute();
+        if ($result === false) {
             return [];
         }
 
-        $files = scandir($this->photosDir);
-        if ($files === false) {
+        $exif = [];
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            $tag = $row['tag'];
+            $value = $row['value'];
+            $sequence = (int) ($row['sequence'] ?? 0);
+
+            if (!array_key_exists($tag, $exif)) {
+                $exif[$tag] = $sequence === 0 ? $value : [$value];
+                continue;
+            }
+
+            if (!is_array($exif[$tag])) {
+                $exif[$tag] = [$exif[$tag]];
+            }
+
+            $exif[$tag][$sequence] = $value;
+        }
+        $result->finalize();
+
+        foreach ($exif as $tag => $value) {
+            if (is_array($value)) {
+                ksort($value);
+                $exif[$tag] = array_values($value);
+            }
+        }
+
+        return $exif;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetchAllAssoc(string $sql): array
+    {
+        $result = $this->connection->query($sql);
+        if ($result === false) {
             return [];
         }
-
-        $photos = [];
-        foreach ($files as $file) {
-            if ($file === '.' || $file === '..') {
-                continue;
-            }
-
-            if (GalleryImageProcessor::isPhotoFile($file)) {
-                $photos[] = $file;
-                continue;
-            }
-
-            $this->unsupportedPhotoFiles[] = $file;
+        $rows = [];
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            $rows[] = $row;
         }
-
-        return $photos;
-    }
-
-    private function generateId(string $filename): string
-    {
-        return substr(hash('sha1', $filename), -6);
-    }
-
-    public function getUnsupportedPhotoFiles(): array
-    {
-        return $this->unsupportedPhotoFiles;
+        $result->finalize();
+        return $rows;
     }
 }
 

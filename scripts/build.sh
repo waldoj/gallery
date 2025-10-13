@@ -40,10 +40,8 @@ if [ ! -w "${PHOTOS_DIR}" ]; then
   exit 1
 fi
 
-if [ -f "${ROOT_DIR}/library.yml" ]; then
-  echo "==> Updating library metadata"
-  php "${ROOT_DIR}/updater.php"
-fi
+echo "==> Updating library metadata"
+php "${ROOT_DIR}/updater.php"
 
 ORIGINALS_DIR="${ROOT_DIR}/originals"
 if find "${ORIGINALS_DIR}" -maxdepth 1 -type f 2>/dev/null | grep -q .; then

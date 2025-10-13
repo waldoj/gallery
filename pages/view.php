@@ -18,20 +18,25 @@ if ($photoId === null || $photoId === '') {
     die('Missing required photo id.');
 }
 
-$libraryPath = rtrim($appRoot, '/\\') . '/' . ltrim($library, '/\\');
 $photosDirFs = rtrim($appRoot, '/\\') . '/' . trim($photos_dir, '/\\') . '/';
 $thumbnailsDirFs = rtrim($appRoot, '/\\') . '/' . trim($thumbnails_dir, '/\\') . '/';
+$databasePath = rtrim($appRoot, '/\\') . '/' . ltrim($database_path ?? 'gallery.db', '/\\');
 
-$libraryManager = new GalleryLibraryManager($libraryPath, $photosDirFs, $thumbnailsDirFs, $sizes);
-$libraryData = $libraryManager->load();
+try {
+    $database = new GalleryDatabase($databasePath);
+    $photoRow = $database->getPhotoById($photoId);
+    $exifData = $database->getExifByPhotoId($photoId);
+} catch (Throwable $throwable) {
+    $photoRow = null;
+    $exifData = [];
+}
 
-if (!isset($libraryData[$photoId]) || !is_array($libraryData[$photoId])) {
+if ($photoRow === null) {
     http_response_code(404);
     die('Photo not found in the library.');
 }
 
-$photoMetadata = $libraryData[$photoId];
-$filename = $photoMetadata['filename'] ?? null;
+$filename = $photoRow['filename'] ?? null;
 
 if ($filename === null) {
     http_response_code(404);
@@ -47,7 +52,7 @@ if (!is_file($originalFsPath)) {
 
 $extension = strtolower((string) pathinfo($filename, PATHINFO_EXTENSION));
 $extensionSuffix = $extension !== '' ? '.' . $extension : '';
-$photoIdString = (string) ($photoMetadata['id'] ?? $photoId);
+$photoIdString = (string) ($photoRow['id'] ?? $photoId);
 
 $preferredSizes = ['large', 'medium', 'thumbnail'];
 $displayPath = null;
@@ -75,46 +80,37 @@ $photoPath = $displayPath ?? $originalPath;
 $photoUrl = gallery_public_url_path($photoPath);
 $downloadUrl = gallery_public_url_path($originalPath);
 
-$title = $photoMetadata['title'] ?? pathinfo($filename, PATHINFO_FILENAME);
-$description = $photoMetadata['description'] ?? '';
-$dateTaken = $photoMetadata['date_taken'] ?? '';
+$title = $photoRow['title'] !== '' ? $photoRow['title'] : pathinfo($filename, PATHINFO_FILENAME);
+$description = $photoRow['description'] ?? '';
+$dateTaken = $photoRow['date_taken'] ?? '';
+$width = $photoRow['width'] ?? null;
+$height = $photoRow['height'] ?? null;
+$author = $photoRow['author'] ?? 'Waldo Jaquith';
+$license = $photoRow['license'] ?? 'CC BY-NC-SA 4.0';
+$hashValue = $photoRow['hash'] ?? '';
 
-$exifData = isset($photoMetadata['exif']) && is_array($photoMetadata['exif'])
-    ? $photoMetadata['exif']
-    : [];
-
-$mapCoordinates = GalleryExifHelper::extractGpsCoordinates($exifData);
-$mapLat = null;
-$mapLon = null;
+$mapLat = isset($photoRow['gps_latitude']) ? (float) $photoRow['gps_latitude'] : null;
+$mapLon = isset($photoRow['gps_longitude']) ? (float) $photoRow['gps_longitude'] : null;
 $mapDirectionAngle = null;
 $mapDirectionLabel = null;
 $mapLinkUrl = null;
 
-$directionAngle = null;
-if (isset($exifData['GPSImgDirection'])) {
-    $directionAngle = GalleryExifHelper::fractionToFloat($exifData['GPSImgDirection']);
-    if ($directionAngle !== null) {
-        $directionAngle = fmod($directionAngle, 360.0);
-        if ($directionAngle < 0) {
-            $directionAngle += 360.0;
-        }
+if (isset($photoRow['gps_img_direction'])) {
+    $directionAngle = (float) $photoRow['gps_img_direction'];
+    $directionAngle = fmod($directionAngle, 360.0);
+    if ($directionAngle < 0) {
+        $directionAngle += 360.0;
     }
+    $compassPoints = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    $index = ((int) round($directionAngle / 45)) % 8;
+    if ($index < 0) {
+        $index += 8;
+    }
+    $mapDirectionLabel = $compassPoints[$index];
+    $mapDirectionAngle = $index * 45;
 }
 
-if ($mapCoordinates !== null) {
-    $mapLat = $mapCoordinates['latitude'];
-    $mapLon = $mapCoordinates['longitude'];
-
-    if ($directionAngle !== null) {
-        $compassPoints = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-        $index = ((int) round($directionAngle / 45)) % 8;
-        if ($index < 0) {
-            $index += 8;
-        }
-        $mapDirectionLabel = $compassPoints[$index];
-        $mapDirectionAngle = $index * 45;
-    }
-
+if ($mapLat !== null && $mapLon !== null) {
     $mapLinkUrl = sprintf(
         'https://www.openstreetmap.org/?mlat=%s&mlon=%s#map=%d/%s/%s',
         rawurlencode(number_format($mapLat, 6, '.', '')),
@@ -125,10 +121,14 @@ if ($mapCoordinates !== null) {
     );
 }
 
-$detailFields = array_diff_key(
-    $photoMetadata,
-    array_flip(['title', 'description', 'date_taken', 'filename', 'exif', 'id'])
-);
+$detailFields = [
+    'Filename' => $filename,
+    'Width' => $width,
+    'Height' => $height,
+    'Author' => $author,
+    'License' => $license,
+    'Hash' => $hashValue,
+];
 
 $renderer = new GalleryTemplateRenderer();
 

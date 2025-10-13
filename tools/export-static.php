@@ -28,12 +28,12 @@ if (is_dir($outputDir)) {
 
 ensureDir($outputDir);
 
-$libraryPath = normalizePath($appRoot . '/' . ltrim($library, '/\\'));
+$databasePath = normalizePath($appRoot . '/' . ltrim($database_path ?? 'gallery.db', '/\\'));
 $photosDirFs = normalizePath($appRoot . '/' . trim($photos_dir, '/\\'));
 $thumbnailsDirFs = normalizePath($appRoot . '/' . trim($thumbnails_dir, '/\\'));
 
-$libraryManager = new GalleryLibraryManager($libraryPath, $photosDirFs, $thumbnailsDirFs, $sizes);
-$libraryData = $libraryManager->load();
+$database = new GalleryDatabase($databasePath);
+$libraryData = $database->getAllPhotos();
 
 $GLOBALS['__gallery_root__'] = $appRoot;
 
@@ -84,12 +84,12 @@ function renderMap(string $appRoot, string $outputDir): void
 }
 
 /**
- * @param array<string, array<mixed>> $libraryData
+ * @param array<int, array<string, mixed>> $libraryData
  */
 function renderViewPages(string $appRoot, string $outputDir, array $libraryData): void
 {
-    foreach ($libraryData as $photoId => $record) {
-        $id = (string) ($record['id'] ?? $photoId);
+    foreach ($libraryData as $record) {
+        $id = (string) ($record['id'] ?? '');
         if ($id === '') {
             continue;
         }

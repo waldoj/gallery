@@ -7,42 +7,35 @@ $appRoot = $GLOBALS['__gallery_root__'] ?? dirname(__DIR__);
 require $appRoot . '/settings.inc.php';
 require_once $appRoot . '/functions.inc.php';
 
-$libraryPath = rtrim($appRoot, '/\\') . '/' . ltrim($library, '/\\');
 $photosDirFs = rtrim($appRoot, '/\\') . '/' . trim($photos_dir, '/\\') . '/';
 $thumbnailsDirFs = rtrim($appRoot, '/\\') . '/' . trim($thumbnails_dir, '/\\') . '/';
+$databasePath = rtrim($appRoot, '/\\') . '/' . ltrim($database_path ?? 'gallery.db', '/\\');
 
-$libraryManager = new GalleryLibraryManager($libraryPath, $photosDirFs, $thumbnailsDirFs, $sizes);
-$libraryData = $libraryManager->load();
+try {
+    $database = new GalleryDatabase($databasePath);
+    $libraryData = $database->getPhotosWithLocation();
+} catch (Throwable $throwable) {
+    $libraryData = [];
+}
 
 $renderer = new GalleryTemplateRenderer();
 $menuHtml = $renderer->render('_menu.html.twig', []);
 
 $photosWithLocation = [];
 
-foreach ($libraryData as $photoId => $metadata) {
-    if (!is_array($metadata) || !isset($metadata['exif']['GPSLatitude'], $metadata['exif']['GPSLongitude'])) {
+foreach ($libraryData as $record) {
+    $photoIdString = (string) ($record['id'] ?? '');
+    if ($photoIdString === '') {
         continue;
     }
 
-    $latRaw = $metadata['exif']['GPSLatitude'];
-    $latRef = $metadata['exif']['GPSLatitudeRef'] ?? 'N';
-    $lonRaw = $metadata['exif']['GPSLongitude'];
-    $lonRef = $metadata['exif']['GPSLongitudeRef'] ?? 'E';
-
-    if (!is_array($latRaw) || !is_array($lonRaw)) {
-        continue;
-    }
-
-    $latitude = GalleryExifHelper::coordinateToDecimal($latRaw, (string)$latRef);
-    $longitude = GalleryExifHelper::coordinateToDecimal($lonRaw, (string)$lonRef);
-
+    $latitude = isset($record['gps_latitude']) ? (float) $record['gps_latitude'] : null;
+    $longitude = isset($record['gps_longitude']) ? (float) $record['gps_longitude'] : null;
     if ($latitude === null || $longitude === null) {
         continue;
     }
 
-    $photoIdString = (string) ($metadata['id'] ?? $photoId);
-
-    $extension = strtolower((string) pathinfo($metadata['filename'] ?? '', PATHINFO_EXTENSION));
+    $extension = strtolower((string) pathinfo($record['filename'] ?? '', PATHINFO_EXTENSION));
     $extensionSuffix = $extension !== '' ? '.' . $extension : '';
 
     $thumbnailPath = null;
@@ -70,10 +63,10 @@ foreach ($libraryData as $photoId => $metadata) {
 
     $photosWithLocation[] = [
         'id' => $photoIdString,
-        'title' => $metadata['title'] ?? 'Untitled',
+        'title' => $record['title'] ?? 'Untitled',
         'lat' => $latitude,
         'lon' => $longitude,
-        'url' => gallery_public_url_path('/view/?id=' . rawurlencode((string)$photoId)),
+        'url' => gallery_public_url_path('/view/?id=' . rawurlencode($photoIdString)),
         'thumb' => $thumbnailUrl,
     ];
 }

@@ -7,27 +7,30 @@ $appRoot = $GLOBALS['__gallery_root__'] ?? dirname(__DIR__);
 require_once $appRoot . '/settings.inc.php';
 require_once $appRoot . '/functions.inc.php';
 
-$libraryPath = rtrim($appRoot, '/\\') . '/' . ltrim($library, '/\\');
 $photosDirFs = rtrim($appRoot, '/\\') . '/' . trim($photos_dir, '/\\') . '/';
 $thumbnailsDirFs = rtrim($appRoot, '/\\') . '/' . trim($thumbnails_dir, '/\\') . '/';
+$databasePath = rtrim($appRoot, '/\\') . '/' . ltrim($database_path ?? 'gallery.db', '/\\');
 
-$libraryManager = new GalleryLibraryManager($libraryPath, $photosDirFs, $thumbnailsDirFs, $sizes);
-$libraryData = $libraryManager->load();
+try {
+    $database = new GalleryDatabase($databasePath);
+    $libraryData = $database->getPhotosMissingDescription();
+} catch (Throwable $throwable) {
+    $libraryData = [];
+}
 
 $entries = [];
 
-foreach ($libraryData as $photoId => $record) {
-    $description = isset($record['description']) ? (string) $record['description'] : '';
-    if (trim($description) !== '') {
-        continue;
-    }
-
+foreach ($libraryData as $record) {
     $filename = $record['filename'] ?? null;
     if ($filename === null || $filename === '') {
         continue;
     }
 
-    $id = (string) ($record['id'] ?? $photoId);
+    $id = (string) ($record['id'] ?? '');
+    if ($id === '') {
+        continue;
+    }
+
     $thumbnailUrl = gallery_public_url_path(findThumbnailPath(
         $id,
         $filename,

@@ -1,6 +1,6 @@
 <?php
 
-$library = 'library.yml';
+$database_path = 'gallery.db';
 $sizes = array(
     'thumbnail' => 150,
     'thumbsquare' => 400,
