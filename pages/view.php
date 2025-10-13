@@ -137,6 +137,8 @@ echo $renderer->render('view.html.twig', [
     'description' => $description,
     'date_taken' => $dateTaken,
     'photo_path' => $photoUrl,
+    'photo_id' => $photoIdString,
+    'raw_description' => $description,
     'detail_fields' => $detailFields,
     'download_url' => $downloadUrl,
     'map_lat' => $mapLat,
@@ -145,4 +147,6 @@ echo $renderer->render('view.html.twig', [
     'map_direction_label' => $mapDirectionLabel,
     'map_link_url' => $mapLinkUrl,
     'exif' => $exifData,
+    'photo_metadata_url' => gallery_public_url_path('photo-metadata'),
+    'show_editor' => !gallery_is_static_export(),
 ]);

@@ -3,6 +3,10 @@
 
 declare(strict_types=1);
 
+if (!defined('GALLERY_STATIC_EXPORT')) {
+    define('GALLERY_STATIC_EXPORT', true);
+}
+
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "This script must be run from the command line.\n");
     exit(1);

@@ -47,6 +47,97 @@ function gallery_public_url_path(string $path): string
     return $basePath === '' ? $normalizedPath : $basePath . $normalizedPath;
 }
 
+function gallery_is_static_export(): bool
+{
+    return defined('GALLERY_STATIC_EXPORT') && constant('GALLERY_STATIC_EXPORT') === true;
+}
+
+/**
+ * @return array<string, mixed>|null
+ */
+function gallery_update_photo_metadata(
+    string $databasePath,
+    string $photoId,
+    string $title,
+    string $description,
+    ?string $dateTaken
+): ?array {
+    if ($photoId === '') {
+        throw new InvalidArgumentException('Photo id is required.');
+    }
+
+    if (!is_file($databasePath)) {
+        throw new RuntimeException('Database not found at ' . $databasePath);
+    }
+
+    $connection = null;
+
+    try {
+        $connection = new SQLite3($databasePath, SQLITE3_OPEN_READWRITE);
+        $connection->enableExceptions(true);
+        $connection->exec('PRAGMA foreign_keys = ON');
+        $connection->exec('BEGIN IMMEDIATE');
+
+        $updateStmt = $connection->prepare(
+            'UPDATE photos
+             SET title = :title,
+                 description = :description,
+                 date_taken = :date_taken,
+                 updated_at = strftime(\'%s\', \'now\')
+             WHERE id = :id'
+        );
+        $updateStmt->bindValue(':title', $title, SQLITE3_TEXT);
+        $updateStmt->bindValue(':description', $description, SQLITE3_TEXT);
+        if ($dateTaken === null || $dateTaken === '') {
+            $updateStmt->bindValue(':date_taken', null, SQLITE3_NULL);
+        } else {
+            $updateStmt->bindValue(':date_taken', $dateTaken, SQLITE3_TEXT);
+        }
+        $updateStmt->bindValue(':id', $photoId, SQLITE3_TEXT);
+
+        $updateResult = $updateStmt->execute();
+        if ($updateResult instanceof SQLite3Result) {
+            $updateResult->finalize();
+        }
+
+        if ($connection->changes() === 0) {
+            $connection->exec('ROLLBACK');
+            return null;
+        }
+
+        $selectStmt = $connection->prepare(
+            'SELECT id, filename, title, description, date_taken,
+                    width, height, hash, author, license,
+                    gps_latitude, gps_longitude, gps_img_direction, gps_img_direction_ref
+             FROM photos
+             WHERE id = :id'
+        );
+        $selectStmt->bindValue(':id', $photoId, SQLITE3_TEXT);
+
+        $selectResult = $selectStmt->execute();
+        if ($selectResult === false) {
+            $connection->exec('ROLLBACK');
+            return null;
+        }
+
+        $row = $selectResult->fetchArray(SQLITE3_ASSOC);
+        $selectResult->finalize();
+
+        $connection->exec('COMMIT');
+
+        return $row !== false ? $row : null;
+    } catch (Throwable $throwable) {
+        if ($connection instanceof SQLite3) {
+            $connection->exec('ROLLBACK');
+        }
+        throw $throwable;
+    } finally {
+        if ($connection instanceof SQLite3) {
+            $connection->close();
+        }
+    }
+}
+
 final class GalleryExifHelper
 {
     public static function read(string $imagePath): array

@@ -13,18 +13,25 @@
     <div class="container" data-photo-title="{{ title|lower|capitalize|e }}">
         <h1>Charlottesville Photos</h1>
         <a class="back-link" href="{{ base_path ~ '/' }}">← Back to gallery</a>
-        <h2>{{ title|e }}</h2>
-        {% if date_taken %}
-            <p><strong>Taken:</strong> {{ date_taken|e }}</p>
-        {% endif %}
+        <div class="photo-heading">
+            <h2 id="photo-title">{{ title|e }}</h2>
+            {% if show_editor %}
+                <div class="photo-edit-controls">
+                    <button type="button" class="photo-edit-button" id="photo-edit-button">Edit</button>
+                    <p class="photo-edit-status" id="photo-edit-status" hidden></p>
+                </div>
+            {% endif %}
+        </div>
+        <p id="photo-date" {% if date_taken is empty %}hidden{% endif %}>
+            <strong>Taken:</strong>
+            <span id="photo-date-value">{{ date_taken|e }}</span>
+        </p>
         <img class="photo__image" src="{{ photo_path|e }}" alt="{{ title|e }}">
 
-        {% if description %}
-            <div class="meta-section">
-                <h2>Description</h2>
-                <p>{{ description|nl2br }}</p>
-            </div>
-        {% endif %}
+        <div class="meta-section" id="photo-description-section" {% if description is empty %}hidden{% endif %}>
+            <h2>Description</h2>
+            <p id="photo-description-content">{% if description %}{{ description|nl2br }}{% endif %}</p>
+        </div>
 
         {% if detail_fields %}
             <div class="meta-section">
@@ -58,6 +65,267 @@
             </div>
         {% endif %}
     </div>
+    {% if show_editor %}
+        <div class="photo-editor-overlay" id="photo-editor-overlay" hidden>
+            <div class="photo-editor-modal" role="dialog" aria-modal="true" aria-labelledby="photo-editor-title">
+                <h2 id="photo-editor-title">Edit Photo</h2>
+                <form id="photo-editor-form">
+                    <label for="photo-editor-title-input">Title</label>
+                    <input type="text" id="photo-editor-title-input" name="title" required value="{{ title|e('html_attr') }}">
+
+                    <label for="photo-editor-description-input">Description</label>
+                    <textarea id="photo-editor-description-input" name="description" rows="6">{{ raw_description|default('')|e }}</textarea>
+
+                    <label for="photo-editor-date-input">Date taken</label>
+                    <input type="text" id="photo-editor-date-input" name="date_taken" value="{{ date_taken|default('')|e('html_attr') }}">
+
+                    <p class="photo-editor-message" id="photo-editor-message" role="alert" hidden></p>
+
+                    <div class="photo-editor-actions">
+                        <button type="submit" id="photo-editor-save">Save</button>
+                        <button type="button" id="photo-editor-cancel">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script>
+            (function () {
+                var overlay = document.getElementById('photo-editor-overlay');
+                if (!overlay) {
+                    return;
+                }
+
+                var editButton = document.getElementById('photo-edit-button');
+                var cancelButton = document.getElementById('photo-editor-cancel');
+                var form = document.getElementById('photo-editor-form');
+                var messageNode = document.getElementById('photo-editor-message');
+                var statusNode = document.getElementById('photo-edit-status');
+                var titleInput = document.getElementById('photo-editor-title-input');
+                var descriptionInput = document.getElementById('photo-editor-description-input');
+                var dateInput = document.getElementById('photo-editor-date-input');
+                var submitButton = document.getElementById('photo-editor-save');
+                var headingNode = document.getElementById('photo-title');
+                var dateNode = document.getElementById('photo-date');
+                var dateValueNode = document.getElementById('photo-date-value');
+                var descriptionSection = document.getElementById('photo-description-section');
+                var descriptionNode = document.getElementById('photo-description-content');
+                var endpoint = {{ photo_metadata_url|json_encode|raw }};
+                var photoId = {{ photo_id|json_encode|raw }};
+                var overlayOpenClass = 'is-open';
+
+                function renderDescription(text) {
+                    if (!descriptionNode) {
+                        return;
+                    }
+                    descriptionNode.textContent = '';
+                    if (typeof text !== 'string' || text === '') {
+                        return;
+                    }
+                    var parts = text.split(/\r?\n/);
+                    for (var i = 0; i < parts.length; i += 1) {
+                        if (i > 0) {
+                            descriptionNode.appendChild(document.createElement('br'));
+                        }
+                        descriptionNode.appendChild(document.createTextNode(parts[i]));
+                    }
+                }
+
+                function clearOverlayMessage() {
+                    if (!messageNode) {
+                        return;
+                    }
+                    messageNode.textContent = '';
+                    messageNode.setAttribute('hidden', '');
+                    messageNode.removeAttribute('data-state');
+                }
+
+                function showOverlayMessage(text, state) {
+                    if (!messageNode) {
+                        return;
+                    }
+                    messageNode.textContent = text;
+                    if (state) {
+                        messageNode.setAttribute('data-state', state);
+                    } else {
+                        messageNode.removeAttribute('data-state');
+                    }
+                    messageNode.removeAttribute('hidden');
+                }
+
+                function clearStatus() {
+                    if (!statusNode) {
+                        return;
+                    }
+                    statusNode.textContent = '';
+                    statusNode.setAttribute('hidden', '');
+                    statusNode.removeAttribute('data-state');
+                }
+
+                function showStatus(text, state) {
+                    if (!statusNode) {
+                        return;
+                    }
+                    statusNode.textContent = text;
+                    if (state) {
+                        statusNode.setAttribute('data-state', state);
+                    } else {
+                        statusNode.removeAttribute('data-state');
+                    }
+                    statusNode.removeAttribute('hidden');
+                }
+
+                function setSaving(isSaving) {
+                    if (submitButton) {
+                        submitButton.disabled = isSaving;
+                    }
+                    if (editButton) {
+                        editButton.disabled = isSaving;
+                    }
+                }
+
+                function onKeydown(event) {
+                    if (event.key === 'Escape') {
+                        closeEditor();
+                    }
+                }
+
+                function openEditor(event) {
+                    if (event) {
+                        event.preventDefault();
+                    }
+                    overlay.classList.add(overlayOpenClass);
+                    overlay.removeAttribute('hidden');
+                    clearOverlayMessage();
+                    if (titleInput) {
+                        titleInput.focus();
+                        titleInput.select();
+                    }
+                    document.addEventListener('keydown', onKeydown);
+                }
+
+                function closeEditor() {
+                    overlay.classList.remove(overlayOpenClass);
+                    overlay.setAttribute('hidden', '');
+                    document.removeEventListener('keydown', onKeydown);
+                }
+
+                if (editButton) {
+                    editButton.addEventListener('click', openEditor);
+                }
+
+                if (cancelButton) {
+                    cancelButton.addEventListener('click', function (event) {
+                        event.preventDefault();
+                        closeEditor();
+                    });
+                }
+
+                overlay.addEventListener('click', function (event) {
+                    if (event.target === overlay) {
+                        closeEditor();
+                    }
+                });
+
+                if (!form) {
+                    return;
+                }
+
+                form.addEventListener('submit', function (event) {
+                    event.preventDefault();
+                    clearOverlayMessage();
+                    clearStatus();
+
+                    var titleValue = titleInput ? titleInput.value.trim() : '';
+                    if (titleValue === '') {
+                        showOverlayMessage('Title is required.', 'error');
+                        if (titleInput) {
+                            titleInput.focus();
+                        }
+                        return;
+                    }
+
+                    var payload = {
+                        id: photoId,
+                        title: titleValue,
+                        description: descriptionInput ? descriptionInput.value : '',
+                        date_taken: dateInput ? dateInput.value.trim() : ''
+                    };
+
+                    setSaving(true);
+
+                    fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(payload)
+                    }).then(function (response) {
+                        if (!response.ok) {
+                            return response.json().catch(function () {
+                                return {};
+                            }).then(function (body) {
+                                var message = body && body.error ? body.error : 'Failed to save changes.';
+                                throw new Error(message);
+                            });
+                        }
+                        return response.json();
+                    }).then(function (body) {
+                        if (!body || !body.photo) {
+                            throw new Error('Unexpected server response.');
+                        }
+
+                        var photo = body.photo;
+
+                        if (headingNode) {
+                            headingNode.textContent = photo.title || titleValue;
+                        }
+
+                        if (titleInput) {
+                            titleInput.value = photo.title || titleValue;
+                        }
+
+                        if (descriptionInput) {
+                            descriptionInput.value = photo.description != null ? photo.description : '';
+                        }
+
+                        if (descriptionSection && descriptionNode) {
+                            var descText = photo.description != null ? photo.description : '';
+                            if (descText !== '') {
+                                descriptionSection.removeAttribute('hidden');
+                                renderDescription(descText);
+                            } else {
+                                descriptionSection.setAttribute('hidden', '');
+                                descriptionNode.textContent = '';
+                            }
+                        }
+
+                        if (dateInput) {
+                            dateInput.value = photo.date_taken != null ? photo.date_taken : '';
+                        }
+
+                        if (dateNode && dateValueNode) {
+                            var dateText = photo.date_taken != null ? photo.date_taken : '';
+                            if (dateText === '') {
+                                dateNode.setAttribute('hidden', '');
+                                dateValueNode.textContent = '';
+                            } else {
+                                dateNode.removeAttribute('hidden');
+                                dateValueNode.textContent = dateText;
+                            }
+                        }
+
+                        showStatus('Saved changes.', 'success');
+                        closeEditor();
+                    }).catch(function (error) {
+                        showOverlayMessage(error.message || 'Failed to save changes.', 'error');
+                    }).finally(function () {
+                        setSaving(false);
+                    });
+                });
+            })();
+        </script>
+    {% endif %}
     <footer>
         <p>All photos copyright Waldo Jaquith, unless otherwise indicated. Photos are published under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en">the Creative Commons BY-NC-SA 4.0 license</a>.</p>
     </footer>

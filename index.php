@@ -77,6 +77,9 @@ switch ($route) {
     case 'descriptions':
         require $appRoot . '/pages/descriptions.php';
         break;
+    case 'photo-metadata':
+        require $appRoot . '/pages/photo-metadata.php';
+        break;
     case 'view':
         if (!isset($_GET['id']) && !empty($segments[1])) {
             $_GET['id'] = $_REQUEST['id'] = $segments[1];
