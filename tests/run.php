@@ -212,14 +212,21 @@ $tests = [
     },
 
     'descriptions_page_lists_missing_photos' => function (): void {
+        if (!function_exists('imagecreatetruecolor')) {
+            return;
+        }
+
         with_temp_dir(function (string $dir): void {
             $originalsDir = $dir . '/originals';
             mkdir($originalsDir);
             $photosDir = $dir . '/photos';
             mkdir($photosDir);
 
-            $pngData = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAADUlEQVR42mP8/5+hHgAHggJ/PcJhWQAAAABJRU5ErkJggg==', true);
-            file_put_contents($originalsDir . '/example.png', $pngData);
+            $image = imagecreatetruecolor(6, 6);
+            $orange = imagecolorallocate($image, 255, 165, 0);
+            imagefilledrectangle($image, 0, 0, 5, 5, $orange);
+            imagepng($image, $originalsDir . '/example.png');
+            imagedestroy($image);
 
             $libraryPath = $dir . '/library.yml';
             (new GalleryYamlRepository())->save($libraryPath, [
@@ -235,7 +242,7 @@ $tests = [
 " .
                 '$library = ' . var_export('library.yml', true) . ";
 " .
-                '$sizes = ' . var_export(['thumbnail' => 50], true) . ";
+                '$sizes = ' . var_export(['thumbnail' => 50, 'thumbsquare' => 400], true) . ";
 " .
                 '$photos_dir = ' . var_export('originals/', true) . ";
 " .
@@ -266,11 +273,18 @@ $tests = [
         });
     },
     'library_manager_sync_adds_new_files_and_removes_missing' => function (): void {
+        if (!function_exists('imagecreatetruecolor')) {
+            return;
+        }
+
         with_temp_dir(function (string $dir): void {
             $originalsDir = $dir . '/originals';
             mkdir($originalsDir);
-            $pngData = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGP4DwQACfsD/Q8xkAAAAABJRU5ErkJggg==', true);
-            file_put_contents($originalsDir . '/new.png', $pngData);
+            $image = imagecreatetruecolor(8, 8);
+            $blue = imagecolorallocate($image, 0, 0, 255);
+            imagefilledrectangle($image, 0, 0, 7, 7, $blue);
+            imagepng($image, $originalsDir . '/new.png');
+            imagedestroy($image);
 
             $derivedDir = $dir . '/photos';
             $libraryPath = $dir . '/library.yml';
@@ -282,7 +296,7 @@ $tests = [
                 ],
             ]);
 
-            $manager = new GalleryLibraryManager($libraryPath, $originalsDir, $derivedDir, ['thumbnail' => 100]);
+            $manager = new GalleryLibraryManager($libraryPath, $originalsDir, $derivedDir, ['thumbnail' => 100, 'thumbsquare' => 400]);
             $result = $manager->sync();
             $synced = $result['library'];
             assertEquals([], $result['duplicates']);
@@ -297,8 +311,8 @@ $tests = [
             assertEquals('', $synced[$newId]['description']);
             assertEquals('new.png', $synced[$newId]['filename']);
             assertEquals($newId, $synced[$newId]['id']);
-            assertTrue(isset($synced[$newId]['width']) && $synced[$newId]['width'] === 1);
-            assertTrue(isset($synced[$newId]['height']) && $synced[$newId]['height'] === 1);
+            assertTrue(isset($synced[$newId]['width']) && $synced[$newId]['width'] === 8);
+            assertTrue(isset($synced[$newId]['height']) && $synced[$newId]['height'] === 8);
             assertTrue(array_key_exists('exif', $synced[$newId]));
             assertEquals('Waldo Jaquith', $synced[$newId]['author']);
             assertEquals('CC BY-NC-SA 4.0', $synced[$newId]['license']);
@@ -306,14 +320,27 @@ $tests = [
             assertTrue(is_dir($derivedDir), 'Thumbnails directory should be created if missing');
             $expectedThumb = $derivedDir . '/' . $newId . '_thumbnail.png';
             assertTrue(is_file($expectedThumb), 'Thumbnail file should be created (or copied)');
+            $expectedSquare = $derivedDir . '/' . $newId . '_thumbsquare.png';
+            assertTrue(is_file($expectedSquare), 'Thumbsquare image should be created');
+            $squareInfo = getimagesize($expectedSquare);
+            assertTrue($squareInfo !== false);
+            assertEquals(400, (int) $squareInfo[0]);
+            assertEquals(400, (int) $squareInfo[1]);
         });
     },
     'library_manager_sync_updates_existing_entry' => function (): void {
+        if (!function_exists('imagecreatetruecolor')) {
+            return;
+        }
+
         with_temp_dir(function (string $dir): void {
             $originalsDir = $dir . '/originals';
             mkdir($originalsDir);
-            $pngData = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGP4DwQACfsD/Q8xkAAAAABJRU5ErkJggg==', true);
-            file_put_contents($originalsDir . '/existing.png', $pngData);
+            $image = imagecreatetruecolor(5, 5);
+            $green = imagecolorallocate($image, 0, 255, 0);
+            imagefilledrectangle($image, 0, 0, 4, 4, $green);
+            imagepng($image, $originalsDir . '/existing.png');
+            imagedestroy($image);
 
             $libraryPath = $dir . '/library.yml';
             (new GalleryYamlRepository())->save($libraryPath, [
@@ -334,8 +361,8 @@ $tests = [
             assertArrayHasKey($existingId, $synced);
             assertEquals('Custom title', $synced[$existingId]['title']);
             assertEquals('Already there', $synced[$existingId]['description']);
-            assertEquals(1, $synced[$existingId]['width']);
-            assertEquals(1, $synced[$existingId]['height']);
+            assertEquals(5, $synced[$existingId]['width']);
+            assertEquals(5, $synced[$existingId]['height']);
             assertArrayHasKey('date_taken', $synced[$existingId]);
             assertArrayHasKey('exif', $synced[$existingId]);
             assertEquals($existingId, $synced[$existingId]['id']);
@@ -396,13 +423,59 @@ $tests = [
         assertFalse($result);
         assertFalse(file_exists($thumbPath), 'Thumbnail should not be created for missing source');
     },
+
+    'image_processor_generate_square_thumbnail_crops_center' => function (): void {
+        if (!function_exists('imagecreatetruecolor')) {
+            return;
+        }
+
+        with_temp_dir(function (string $dir): void {
+            $processor = new GalleryImageProcessor();
+            $sourcePath = $dir . '/source.jpg';
+            $thumbPath = $dir . '/thumbsquare.jpg';
+
+            $width = 800;
+            $height = 400;
+            $image = imagecreatetruecolor($width, $height);
+            $green = imagecolorallocate($image, 0, 255, 0);
+            $red = imagecolorallocate($image, 255, 0, 0);
+            imagefilledrectangle($image, 0, 0, $width - 1, $height - 1, $green);
+            imagefilledrectangle($image, (int) floor($width / 2), 0, $width - 1, $height - 1, $red);
+            imagejpeg($image, $sourcePath, 90);
+            imagedestroy($image);
+
+            $result = $processor->generateSquareThumbnail($sourcePath, $thumbPath, 400, 144);
+            assertTrue($result, 'Square thumbnail generation should succeed');
+            assertTrue(is_file($thumbPath));
+
+            $info = getimagesize($thumbPath);
+            assertTrue($info !== false);
+            assertEquals(400, (int) $info[0]);
+            assertEquals(400, (int) $info[1]);
+
+            $thumb = imagecreatefromjpeg($thumbPath);
+            $firstPixel = imagecolorsforindex($thumb, imagecolorat($thumb, 0, 0));
+            $lastPixel = imagecolorsforindex($thumb, imagecolorat($thumb, 399, 0));
+            imagedestroy($thumb);
+
+            assertTrue($firstPixel['green'] > $firstPixel['red'], 'Left edge should retain left-side color');
+            assertTrue($lastPixel['red'] > $lastPixel['green'], 'Right edge should retain right-side color');
+        });
+    },
     'image_processor_generate_thumbnail_creates_output_file' => function (): void {
+        if (!function_exists('imagecreatetruecolor')) {
+            return;
+        }
+
         with_temp_dir(function (string $dir): void {
             $processor = new GalleryImageProcessor();
             $source = $dir . '/source.png';
             $thumbnail = $dir . '/thumb.png';
-            $pngData = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGP4DwQACfsD/Q8xkAAAAABJRU5ErkJggg==', true);
-            file_put_contents($source, $pngData);
+            $image = imagecreatetruecolor(5, 5);
+            $color = imagecolorallocate($image, 200, 100, 50);
+            imagefilledrectangle($image, 0, 0, 4, 4, $color);
+            imagepng($image, $source);
+            imagedestroy($image);
             $result = $processor->generateThumbnail($source, $thumbnail, 10);
             assertTrue((bool) $result, 'Thumbnail generation should succeed or fall back to copying');
             assertTrue(is_file($thumbnail), 'Thumbnail file should exist');
@@ -426,15 +499,22 @@ $tests = [
         assertTrue($coords === null);
     },
     'index_renderer_handles_numeric_photo_ids' => function (): void {
+        if (!function_exists('imagecreatetruecolor')) {
+            return;
+        }
+
         with_temp_dir(function (string $dir): void {
             $originalsDir = $dir . '/originals';
             mkdir($originalsDir);
             $derivedDir = $dir . '/photos';
             mkdir($derivedDir);
 
-            $pngData = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGP4DwQACfsD/Q8xkAAAAABJRU5ErkJggg==', true);
             $filename = 'numeric.png';
-            file_put_contents($originalsDir . '/' . $filename, $pngData);
+            $image = imagecreatetruecolor(5, 5);
+            $grey = imagecolorallocate($image, 128, 128, 128);
+            imagefilledrectangle($image, 0, 0, 4, 4, $grey);
+            imagepng($image, $originalsDir . '/' . $filename);
+            imagedestroy($image);
 
             $libraryPath = $dir . '/library.yml';
             (new GalleryYamlRepository())->save($libraryPath, [
@@ -574,7 +654,7 @@ $tests = [
 
             file_put_contents($dir . '/settings.inc.php', "<?php\n" .
                 '$library = ' . var_export('library.yml', true) . ";\n" .
-                '$sizes = ' . var_export(['thumbnail' => 150], true) . ";\n" .
+                '$sizes = ' . var_export(['thumbnail' => 150, 'thumbsquare' => 400], true) . ";\n" .
                 '$photos_dir = ' . var_export('originals/', true) . ";\n" .
                 '$thumbnails_dir = ' . var_export('photos/', true) . ";\n"
             );
@@ -608,7 +688,7 @@ $tests = [
         mkdir($dir);
         file_put_contents($dir . '/settings.inc.php', "<?php\n" .
             '$library = ' . var_export('library.yml', true) . ";\n" .
-            '$sizes = ' . var_export(['thumbnail' => 150], true) . ";\n" .
+            '$sizes = ' . var_export(['thumbnail' => 150, 'thumbsquare' => 400], true) . ";\n" .
             '$photos_dir = ' . var_export('originals/', true) . ";\n" .
             '$thumbnails_dir = ' . var_export('photos/', true) . ";\n"
         );

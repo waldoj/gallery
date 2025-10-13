@@ -391,9 +391,16 @@ final class GalleryImageProcessor
 
         [$createCallback, $saveCallback] = $callbacks;
 
-        $sourceImage = @$createCallback($photoPath);
-        if ($sourceImage === false) {
-            return false;
+        $sourceImage = null;
+        $imageData = @file_get_contents($photoPath);
+        if ($imageData !== false) {
+            $sourceImage = @imagecreatefromstring($imageData);
+        }
+        if ($sourceImage === false || $sourceImage === null) {
+            $sourceImage = @$createCallback($photoPath);
+        }
+        if ($sourceImage === false || $sourceImage === null) {
+            return (bool) @copy($photoPath, $thumbnailPath);
         }
 
         $square = @imagecreatetruecolor($size, $size);

@@ -37,8 +37,11 @@ foreach ($libraryData as $photoId => $metadata) {
     $idForFile = (string) ($metadata['id'] ?? $photoIdString);
     $thumbnailPath = null;
 
-    // Prefer a "thumbnail" derivative, then fall back to any other generated sizes.
+    // Prefer a "thumbsquare" or "thumbnail" derivative, then fall back to other sizes.
     $preferredSizes = [];
+    if (array_key_exists('thumbsquare', $sizes)) {
+        $preferredSizes[] = 'thumbsquare';
+    }
     if (array_key_exists('thumbnail', $sizes)) {
         $preferredSizes[] = 'thumbnail';
     }

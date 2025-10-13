@@ -46,7 +46,11 @@ foreach ($libraryData as $photoId => $metadata) {
     $extensionSuffix = $extension !== '' ? '.' . $extension : '';
 
     $thumbnailPath = null;
-    $preferredSizes = ['thumbnail'];
+    $preferredSizes = [];
+    if (array_key_exists('thumbsquare', $sizes)) {
+        $preferredSizes[] = 'thumbsquare';
+    }
+    $preferredSizes[] = 'thumbnail';
     foreach ($sizes as $sizeName => $_) {
         if (!in_array($sizeName, $preferredSizes, true)) {
             $preferredSizes[] = $sizeName;
@@ -150,7 +154,7 @@ $homeUrl = gallery_public_url_path('/');
             bounds.forEach((coord, index) => {
                 const photo = photos[index];
                 const thumbHtml = photo.thumb
-                    ? `<img src="${photo.thumb}" alt="${photo.title}" style="max-width:120px;height:auto;display:block;margin-bottom:8px;">`
+                    ? `<a href="${photo.url}"><img src="${photo.thumb}" alt="${photo.title}" style="width:100px;height:100px;object-fit:cover;display:block;margin: 0 auto 8px auto;border-radius:4px;"></a>`
                     : '';
 
                 L.marker(coord)
