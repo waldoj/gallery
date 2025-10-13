@@ -4,27 +4,25 @@ Gallery is a small personal project to display a gallery of photos on a website.
 
 ## Getting Started
 
-1. Install dependencies:
+1. You can build locally, install dependencies, run the test suite, import any new images in `originals/`, and refresh the library metadata with this command:
 
 ```
-composer install
+composer build
 ```
 
-2. Launch the local development server (available at [http://localhost:8000](http://localhost:8000)):
+2. Once the local site is built, launch the local development server (available at [http://localhost:8000](http://localhost:8000)):
 
 ```
 composer serve
 ```
 
-The Composer script uses PHP's built-in web server and serves the project root, so Twig templates, images, and CSS are available without additional configuration.
-
-## Build
-
-For deployment you can run the build script, which installs dependencies, runs the test suite, and refreshes the library metadata:
+The local site will build a static version of the site as a public image gallery:
 
 ```
-composer build
+composer export
 ```
+
+The resulting files are stored in `build/`, and can be uploaded to the host.
 
 ## License
 
