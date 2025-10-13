@@ -59,10 +59,48 @@ $dateTakenRaw = isset($payload['date_taken']) ? (string) $payload['date_taken'] 
 $dateTakenRaw = trim($dateTakenRaw);
 $dateTaken = $dateTakenRaw === '' ? null : $dateTakenRaw;
 
+$latitudeInput = isset($payload['latitude']) ? trim((string) $payload['latitude']) : '';
+$longitudeInput = isset($payload['longitude']) ? trim((string) $payload['longitude']) : '';
+
+$latitude = null;
+$longitude = null;
+
+if ($latitudeInput !== '' || $longitudeInput !== '') {
+    if ($latitudeInput === '' || $longitudeInput === '') {
+        http_response_code(422);
+        echo json_encode(['error' => 'Both latitude and longitude are required when setting a location.']);
+        return;
+    }
+
+    $latitudeValue = filter_var($latitudeInput, FILTER_VALIDATE_FLOAT);
+    $longitudeValue = filter_var($longitudeInput, FILTER_VALIDATE_FLOAT);
+
+    if ($latitudeValue === false || $longitudeValue === false) {
+        http_response_code(422);
+        echo json_encode(['error' => 'Latitude and longitude must be valid numbers.']);
+        return;
+    }
+
+    if ($latitudeValue < -90 || $latitudeValue > 90) {
+        http_response_code(422);
+        echo json_encode(['error' => 'Latitude must be between -90 and 90.']);
+        return;
+    }
+
+    if ($longitudeValue < -180 || $longitudeValue > 180) {
+        http_response_code(422);
+        echo json_encode(['error' => 'Longitude must be between -180 and 180.']);
+        return;
+    }
+
+    $latitude = $latitudeValue;
+    $longitude = $longitudeValue;
+}
+
 $databasePath = rtrim($appRoot, '/\\') . '/' . ltrim($database_path ?? 'gallery.db', '/\\');
 
 try {
-    $updated = gallery_update_photo_metadata($databasePath, $photoId, $title, $description, $dateTaken);
+    $updated = gallery_update_photo_metadata($databasePath, $photoId, $title, $description, $dateTaken, $latitude, $longitude);
 } catch (Throwable $throwable) {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to update photo metadata.']);
@@ -83,6 +121,11 @@ echo json_encode([
         'title' => $updated['title'] ?? $title,
         'description' => $updated['description'] ?? $description,
         'date_taken' => $updated['date_taken'] ?? $dateTakenRaw,
+        'latitude' => array_key_exists('gps_latitude', $updated) && $updated['gps_latitude'] !== null
+            ? (float) $updated['gps_latitude']
+            : null,
+        'longitude' => array_key_exists('gps_longitude', $updated) && $updated['gps_longitude'] !== null
+            ? (float) $updated['gps_longitude']
+            : null,
     ],
 ]);
-

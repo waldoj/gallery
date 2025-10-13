@@ -71,9 +71,6 @@ switch ($route) {
     case 'map':
         require $appRoot . '/pages/map.php';
         break;
-    case 'geolocator':
-        require $appRoot . '/pages/geolocator.php';
-        break;
     case 'descriptions':
         require $appRoot . '/pages/descriptions.php';
         break;

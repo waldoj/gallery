@@ -60,7 +60,9 @@ function gallery_update_photo_metadata(
     string $photoId,
     string $title,
     string $description,
-    ?string $dateTaken
+    ?string $dateTaken,
+    ?float $latitude = null,
+    ?float $longitude = null
 ): ?array {
     if ($photoId === '') {
         throw new InvalidArgumentException('Photo id is required.');
@@ -83,6 +85,8 @@ function gallery_update_photo_metadata(
              SET title = :title,
                  description = :description,
                  date_taken = :date_taken,
+                 gps_latitude = :gps_latitude,
+                 gps_longitude = :gps_longitude,
                  updated_at = strftime(\'%s\', \'now\')
              WHERE id = :id'
         );
@@ -92,6 +96,16 @@ function gallery_update_photo_metadata(
             $updateStmt->bindValue(':date_taken', null, SQLITE3_NULL);
         } else {
             $updateStmt->bindValue(':date_taken', $dateTaken, SQLITE3_TEXT);
+        }
+        if ($latitude === null) {
+            $updateStmt->bindValue(':gps_latitude', null, SQLITE3_NULL);
+        } else {
+            $updateStmt->bindValue(':gps_latitude', $latitude, SQLITE3_FLOAT);
+        }
+        if ($longitude === null) {
+            $updateStmt->bindValue(':gps_longitude', null, SQLITE3_NULL);
+        } else {
+            $updateStmt->bindValue(':gps_longitude', $longitude, SQLITE3_FLOAT);
         }
         $updateStmt->bindValue(':id', $photoId, SQLITE3_TEXT);
 

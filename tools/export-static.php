@@ -196,8 +196,6 @@ function rewriteRootLinks(string $html, string $relativeRoot): string
         "href='/map/'" => "href='" . $relativeRoot . "map/'",
         'href="/descriptions/"' => 'href="' . $relativeRoot . 'descriptions/"',
         "href='/descriptions/'" => "href='" . $relativeRoot . "descriptions/'",
-        'href="/geolocator/"' => 'href="' . $relativeRoot . 'geolocator/"',
-        "href='/geolocator/'" => "href='" . $relativeRoot . "geolocator/'",
     ];
 
     foreach ($replacements as $search => $replace) {

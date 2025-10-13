@@ -94,6 +94,8 @@ $mapLon = isset($photoRow['gps_longitude']) ? (float) $photoRow['gps_longitude']
 $mapDirectionAngle = null;
 $mapDirectionLabel = null;
 $mapLinkUrl = null;
+$defaultMapLat = 38.030727;
+$defaultMapLon = -78.481511;
 
 if (isset($photoRow['gps_img_direction'])) {
     $directionAngle = (float) $photoRow['gps_img_direction'];
@@ -146,6 +148,8 @@ echo $renderer->render('view.html.twig', [
     'map_direction_angle' => $mapDirectionAngle,
     'map_direction_label' => $mapDirectionLabel,
     'map_link_url' => $mapLinkUrl,
+    'default_latitude' => $defaultMapLat,
+    'default_longitude' => $defaultMapLon,
     'exif' => $exifData,
     'photo_metadata_url' => gallery_public_url_path('photo-metadata'),
     'show_editor' => !gallery_is_static_export(),

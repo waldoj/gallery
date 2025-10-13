@@ -430,37 +430,6 @@ $tests = [
             assertTrue(strpos($html, 'class="main-nav"') !== false, 'Map page should include navigation menu');
         });
     },
-    'geolocator_page_contains_map_container' => function (): void {
-        $dir = sys_get_temp_dir() . '/geolocator_settings_' . uniqid();
-        mkdir($dir);
-        file_put_contents($dir . '/settings.inc.php', "<?php\n"
-            . '$database_path = ' . var_export('gallery.db', true) . ";\n"
-            . '$sizes = ' . var_export(['thumbnail' => 150, 'thumbsquare' => 400], true) . ";\n"
-            . '$photos_dir = ' . var_export('originals/', true) . ";\n"
-            . '$thumbnails_dir = ' . var_export('photos/', true) . ";\n"
-        );
-        file_put_contents($dir . '/functions.inc.php', "<?php require_once '" . addslashes(__DIR__ . '/../functions.inc.php') . "';");
-
-        $previousRoot = $GLOBALS['__gallery_root__'] ?? null;
-        $previousCwd = getcwd();
-        $GLOBALS['__gallery_root__'] = $dir;
-        chdir($dir);
-
-        ob_start();
-        include __DIR__ . '/../pages/geolocator.php';
-        $html = ob_get_clean();
-
-        chdir($previousCwd);
-        if ($previousRoot === null) {
-            unset($GLOBALS['__gallery_root__']);
-        } else {
-            $GLOBALS['__gallery_root__'] = $previousRoot;
-        }
-
-        assertTrue(strpos($html, 'id="geolocator-map"') !== false, 'Geolocator page should include map container');
-        assertTrue(strpos($html, 'GPSLatitudeRef') !== false, 'Geolocator instructions should mention GPS YAML fields');
-        assertTrue(strpos($html, 'class="main-nav"') !== false, 'Geolocator page should include navigation menu');
-    },
 
     'router_serves_view_path_segment' => function (): void {
         $previousRequest = $_SERVER['REQUEST_URI'] ?? null;

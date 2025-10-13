@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title>{{ title|e }} - Charlottesville Photos</title>
     <link rel="stylesheet" href="{{ base_path ~ '/assets/styles.css' }}">
-    {% if map_lat is not null %}
+    {% if map_lat is not null or show_editor %}
         <link rel="stylesheet" href="{{ base_path ~ '/assets/vendor/leaflet/leaflet.css' }}" />
     {% endif %}
 </head>
@@ -53,17 +53,15 @@
 
         <p><a href="{{ download_url|e }}">Download original</a></p>
 
-        {% if map_lat is not null and map_lon is not null %}
-            <div class="meta-section">
-                <h2>Location</h2>
-                <div class="map-container">
-                    <div id="photo-map" class="map"></div>
-                </div>
-                {% if map_link_url %}
-                    <p><a href="{{ map_link_url|e }}" target="_blank" rel="noopener noreferrer">Open in OpenStreetMap</a></p>
-                {% endif %}
+        <div class="meta-section" id="photo-location-section" {% if map_lat is null or map_lon is null %}hidden{% endif %}>
+            <h2>Location</h2>
+            <div class="map-container">
+                <div id="photo-map" class="map"></div>
             </div>
-        {% endif %}
+            <p id="photo-map-link-wrapper" {% if map_link_url is empty %}hidden{% endif %}>
+                <a id="photo-map-link" href="{{ map_link_url|e }}" target="_blank" rel="noopener noreferrer">Open in OpenStreetMap</a>
+            </p>
+        </div>
     </div>
     {% if show_editor %}
         <div class="photo-editor-overlay" id="photo-editor-overlay" hidden>
@@ -79,6 +77,34 @@
                     <label for="photo-editor-date-input">Date taken</label>
                     <input type="text" id="photo-editor-date-input" name="date_taken" value="{{ date_taken|default('')|e('html_attr') }}">
 
+                    <fieldset class="photo-editor-location">
+                        <legend>Location</legend>
+                        <div class="photo-editor-map" id="photo-editor-map"></div>
+                        <div class="photo-editor-location-fields">
+                            <div class="photo-editor-location-field">
+                                <label for="photo-editor-latitude-input">Latitude</label>
+                                <input type="text" id="photo-editor-latitude-input" name="latitude" value="{% if map_lat is not null %}{{ map_lat|number_format(6, '.', '')|e('html_attr') }}{% endif %}" inputmode="decimal" autocomplete="off">
+                            </div>
+                            <div class="photo-editor-location-field">
+                                <label for="photo-editor-longitude-input">Longitude</label>
+                                <input type="text" id="photo-editor-longitude-input" name="longitude" value="{% if map_lon is not null %}{{ map_lon|number_format(6, '.', '')|e('html_attr') }}{% endif %}" inputmode="decimal" autocomplete="off">
+                            </div>
+                            <div class="photo-editor-location-field photo-editor-location-actions">
+                                <button type="button" id="photo-editor-clear-location">Clear location</button>
+                            </div>
+                        </div>
+                        <p class="photo-editor-location-note" id="photo-editor-location-note">
+                            Drag the marker or edit the numbers to update this photo's location.
+                        </p>
+                        <p class="photo-editor-location-preview" id="photo-editor-location-preview" data-state="{% if map_lat is not null and map_lon is not null %}set{% else %}unset{% endif %}">
+                            {% if map_lat is not null and map_lon is not null %}
+                                Latitude {{ map_lat|number_format(6, '.', '') }}, Longitude {{ map_lon|number_format(6, '.', '') }}
+                            {% else %}
+                                No location set.
+                            {% endif %}
+                        </p>
+                    </fieldset>
+
                     <p class="photo-editor-message" id="photo-editor-message" role="alert" hidden></p>
 
                     <div class="photo-editor-actions">
@@ -88,6 +114,11 @@
                 </form>
             </div>
         </div>
+    {% endif %}
+    {% if map_lat is not null or show_editor %}
+        <script src="{{ base_path ~ '/assets/vendor/leaflet/leaflet.js' }}"></script>
+    {% endif %}
+    {% if show_editor %}
         <script>
             (function () {
                 var overlay = document.getElementById('photo-editor-overlay');
@@ -103,6 +134,10 @@
                 var titleInput = document.getElementById('photo-editor-title-input');
                 var descriptionInput = document.getElementById('photo-editor-description-input');
                 var dateInput = document.getElementById('photo-editor-date-input');
+                var latInput = document.getElementById('photo-editor-latitude-input');
+                var lonInput = document.getElementById('photo-editor-longitude-input');
+                var clearLocationButton = document.getElementById('photo-editor-clear-location');
+                var locationPreview = document.getElementById('photo-editor-location-preview');
                 var submitButton = document.getElementById('photo-editor-save');
                 var headingNode = document.getElementById('photo-title');
                 var dateNode = document.getElementById('photo-date');
@@ -111,6 +146,12 @@
                 var descriptionNode = document.getElementById('photo-description-content');
                 var endpoint = {{ photo_metadata_url|json_encode|raw }};
                 var photoId = {{ photo_id|json_encode|raw }};
+                var defaultLat = {{ default_latitude|json_encode|raw }};
+                var defaultLon = {{ default_longitude|json_encode|raw }};
+                var currentLat = {{ map_lat|json_encode }};
+                var currentLon = {{ map_lon|json_encode }};
+                var geolocatorMap = null;
+                var geolocatorMarker = null;
                 var overlayOpenClass = 'is-open';
 
                 function renderDescription(text) {
@@ -127,6 +168,72 @@
                             descriptionNode.appendChild(document.createElement('br'));
                         }
                         descriptionNode.appendChild(document.createTextNode(parts[i]));
+                    }
+                }
+
+                function formatCoordinate(value) {
+                    return Number(value).toFixed(6);
+                }
+
+                function updateLocationPreview() {
+                    if (!locationPreview) {
+                        return;
+                    }
+                    if (currentLat === null || currentLon === null) {
+                        locationPreview.textContent = 'No location set.';
+                        locationPreview.setAttribute('data-state', 'unset');
+                    } else {
+                        locationPreview.textContent =
+                            'Latitude ' + formatCoordinate(currentLat) + ', Longitude ' + formatCoordinate(currentLon);
+                        locationPreview.setAttribute('data-state', 'set');
+                    }
+                }
+
+                function syncGeolocatorMapPosition() {
+                    if (!geolocatorMarker) {
+                        return;
+                    }
+                    var targetLat = currentLat !== null ? currentLat : defaultLat;
+                    var targetLon = currentLon !== null ? currentLon : defaultLon;
+                    geolocatorMarker.setLatLng([targetLat, targetLon]);
+                    if (geolocatorMap) {
+                        geolocatorMap.setView([targetLat, targetLon], geolocatorMap.getZoom() || 15);
+                    }
+                }
+
+                function setCurrentCoordinates(lat, lon, options) {
+                    options = options || {};
+                    if (lat === null || typeof lat === 'undefined') {
+                        currentLat = null;
+                    } else {
+                        currentLat = Number(lat);
+                        if (!Number.isFinite(currentLat)) {
+                            currentLat = null;
+                        }
+                    }
+
+                    if (lon === null || typeof lon === 'undefined') {
+                        currentLon = null;
+                    } else {
+                        currentLon = Number(lon);
+                        if (!Number.isFinite(currentLon)) {
+                            currentLon = null;
+                        }
+                    }
+
+                    if (options.updateInputs !== false) {
+                        if (latInput) {
+                            latInput.value = currentLat !== null ? formatCoordinate(currentLat) : '';
+                        }
+                        if (lonInput) {
+                            lonInput.value = currentLon !== null ? formatCoordinate(currentLon) : '';
+                        }
+                    }
+
+                    updateLocationPreview();
+
+                    if (options.updateMarker !== false) {
+                        syncGeolocatorMapPosition();
                     }
                 }
 
@@ -181,6 +288,49 @@
                     if (editButton) {
                         editButton.disabled = isSaving;
                     }
+                    if (clearLocationButton) {
+                        clearLocationButton.disabled = isSaving;
+                    }
+                }
+
+                function ensureGeolocatorMap() {
+                    if (typeof L === 'undefined') {
+                        return;
+                    }
+                    if (!geolocatorMap) {
+                        geolocatorMap = L.map('photo-editor-map', { zoomControl: true }).setView(
+                            [defaultLat, defaultLon],
+                            17
+                        );
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            maxZoom: 19,
+                            attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
+                        }).addTo(geolocatorMap);
+                        geolocatorMarker = L.marker([defaultLat, defaultLon], { draggable: true }).addTo(geolocatorMap);
+                        geolocatorMarker.on('drag', function (event) {
+                            var latlng = event.latlng;
+                            currentLat = latlng.lat;
+                            currentLon = latlng.lng;
+                            if (latInput) {
+                                latInput.value = formatCoordinate(currentLat);
+                            }
+                            if (lonInput) {
+                                lonInput.value = formatCoordinate(currentLon);
+                            }
+                            updateLocationPreview();
+                            clearOverlayMessage();
+                        });
+                    }
+                    syncGeolocatorMapPosition();
+                    window.requestAnimationFrame(function () {
+                        if (geolocatorMap) {
+                            geolocatorMap.invalidateSize();
+                        }
+                    });
+                }
+
+                function ensureInputsMatch() {
+                    setCurrentCoordinates(currentLat, currentLon, { updateMarker: true });
                 }
 
                 function onKeydown(event) {
@@ -196,17 +346,68 @@
                     overlay.classList.add(overlayOpenClass);
                     overlay.removeAttribute('hidden');
                     clearOverlayMessage();
+                    document.addEventListener('keydown', onKeydown);
+                    ensureGeolocatorMap();
+                    ensureInputsMatch();
+                    updateLocationPreview();
                     if (titleInput) {
                         titleInput.focus();
                         titleInput.select();
                     }
-                    document.addEventListener('keydown', onKeydown);
                 }
 
                 function closeEditor() {
                     overlay.classList.remove(overlayOpenClass);
                     overlay.setAttribute('hidden', '');
                     document.removeEventListener('keydown', onKeydown);
+                }
+
+                function parseCoordinatesForSubmission() {
+                    if (!latInput || !lonInput) {
+                        return { lat: currentLat, lon: currentLon };
+                    }
+                    var latValue = latInput.value.trim();
+                    var lonValue = lonInput.value.trim();
+                    if (latValue === '' && lonValue === '') {
+                        return { lat: null, lon: null };
+                    }
+                    if (latValue === '' || lonValue === '') {
+                        throw new Error('Please provide both latitude and longitude, or clear both fields.');
+                    }
+                    var latNumber = Number(latValue);
+                    var lonNumber = Number(lonValue);
+                    if (!Number.isFinite(latNumber) || !Number.isFinite(lonNumber)) {
+                        throw new Error('Latitude and longitude must be valid numbers.');
+                    }
+                    if (latNumber < -90 || latNumber > 90) {
+                        throw new Error('Latitude must be between -90 and 90.');
+                    }
+                    if (lonNumber < -180 || lonNumber > 180) {
+                        throw new Error('Longitude must be between -180 and 180.');
+                    }
+                    return { lat: latNumber, lon: lonNumber };
+                }
+
+                function handleCoordinateInputChange() {
+                    clearOverlayMessage();
+                    if (!latInput || !lonInput) {
+                        return;
+                    }
+                    var latValue = latInput.value.trim();
+                    var lonValue = lonInput.value.trim();
+                    if (latValue === '' && lonValue === '') {
+                        setCurrentCoordinates(null, null, { updateInputs: false, updateMarker: true });
+                        return;
+                    }
+                    if (latValue === '' || lonValue === '') {
+                        return;
+                    }
+                    var latNumber = Number(latValue);
+                    var lonNumber = Number(lonValue);
+                    if (!Number.isFinite(latNumber) || !Number.isFinite(lonNumber)) {
+                        return;
+                    }
+                    setCurrentCoordinates(latNumber, lonNumber, { updateInputs: false, updateMarker: true });
                 }
 
                 if (editButton) {
@@ -226,6 +427,25 @@
                     }
                 });
 
+                if (clearLocationButton) {
+                    clearLocationButton.addEventListener('click', function (event) {
+                        event.preventDefault();
+                        clearOverlayMessage();
+                        setCurrentCoordinates(null, null, { updateInputs: true, updateMarker: true });
+                        ensureGeolocatorMap();
+                    });
+                }
+
+                if (latInput) {
+                    latInput.addEventListener('change', handleCoordinateInputChange);
+                    latInput.addEventListener('input', clearOverlayMessage);
+                }
+
+                if (lonInput) {
+                    lonInput.addEventListener('change', handleCoordinateInputChange);
+                    lonInput.addEventListener('input', clearOverlayMessage);
+                }
+
                 if (!form) {
                     return;
                 }
@@ -244,14 +464,24 @@
                         return;
                     }
 
+                    var coordinates;
+                    try {
+                        coordinates = parseCoordinatesForSubmission();
+                    } catch (error) {
+                        showOverlayMessage(error.message || 'Invalid coordinates.', 'error');
+                        return;
+                    }
+
+                    setSaving(true);
+
                     var payload = {
                         id: photoId,
                         title: titleValue,
                         description: descriptionInput ? descriptionInput.value : '',
-                        date_taken: dateInput ? dateInput.value.trim() : ''
+                        date_taken: dateInput ? dateInput.value.trim() : '',
+                        latitude: coordinates.lat,
+                        longitude: coordinates.lon
                     };
-
-                    setSaving(true);
 
                     fetch(endpoint, {
                         method: 'POST',
@@ -315,6 +545,22 @@
                             }
                         }
 
+                        var nextLat = Object.prototype.hasOwnProperty.call(photo, 'latitude') ? photo.latitude : null;
+                        var nextLon = Object.prototype.hasOwnProperty.call(photo, 'longitude') ? photo.longitude : null;
+
+                        if (nextLat === null || typeof nextLat === 'undefined') {
+                            nextLat = null;
+                        }
+                        if (nextLon === null || typeof nextLon === 'undefined') {
+                            nextLon = null;
+                        }
+
+                        setCurrentCoordinates(nextLat, nextLon, { updateInputs: true, updateMarker: true });
+
+                        if (typeof window.__galleryUpdateLocation === 'function') {
+                            window.__galleryUpdateLocation(nextLat, nextLon);
+                        }
+
                         showStatus('Saved changes.', 'success');
                         closeEditor();
                     }).catch(function (error) {
@@ -323,55 +569,142 @@
                         setSaving(false);
                     });
                 });
+
+                updateLocationPreview();
+            })();
+        </script>
+    {% endif %}
+    {% if map_lat is not null or show_editor %}
+        <script>
+            (function () {
+                if (typeof L === 'undefined') {
+                    return;
+                }
+
+                var mapSection = document.getElementById('photo-location-section');
+                var mapContainer = document.getElementById('photo-map');
+                var mapLinkWrapper = document.getElementById('photo-map-link-wrapper');
+                var mapLink = document.getElementById('photo-map-link');
+                var defaultLat = {{ default_latitude|json_encode|raw }};
+                var defaultLon = {{ default_longitude|json_encode|raw }};
+                var initialLat = {{ map_lat|json_encode }};
+                var initialLon = {{ map_lon|json_encode }};
+                var directionAngle = {{ map_direction_angle|json_encode }};
+                var mapInstance = null;
+                var markerInstance = null;
+                var defaultZoom = 16;
+
+                function buildIcon(angle) {
+                    if (angle === null || typeof angle === 'undefined') {
+                        return L.divIcon({
+                            className: 'direction-icon',
+                            html: '<div class="direction-dot"></div>',
+                            iconSize: [36, 36],
+                            iconAnchor: [18, 18]
+                        });
+                    }
+
+                    return L.divIcon({
+                        className: 'direction-icon',
+                        html: '<div class="direction-arrow" style="transform: rotate(' + angle + 'deg);"></div>',
+                        iconSize: [36, 36],
+                        iconAnchor: [18, 18]
+                    });
+                }
+
+                function ensureMap() {
+                    if (!mapContainer) {
+                        return null;
+                    }
+                    if (!mapInstance) {
+                        mapInstance = L.map(mapContainer).setView([defaultLat, defaultLon], defaultZoom);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            maxZoom: 19,
+                            attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
+                        }).addTo(mapInstance);
+                    }
+                    if (!markerInstance) {
+                        markerInstance = L.marker([defaultLat, defaultLon], {
+                            icon: buildIcon(directionAngle)
+                        }).addTo(mapInstance);
+                    }
+                    return mapInstance;
+                }
+
+                function updateMapLink(lat, lon) {
+                    if (!mapLink) {
+                        return;
+                    }
+                    var latFixed = Number(lat).toFixed(6);
+                    var lonFixed = Number(lon).toFixed(6);
+                    var url = 'https://www.openstreetmap.org/?mlat=' + encodeURIComponent(latFixed) +
+                        '&mlon=' + encodeURIComponent(lonFixed) + '#map=16/' +
+                        encodeURIComponent(latFixed) + '/' + encodeURIComponent(lonFixed);
+                    mapLink.href = url;
+                    if (mapLinkWrapper) {
+                        mapLinkWrapper.removeAttribute('hidden');
+                    }
+                }
+
+                function hideMap() {
+                    if (mapSection) {
+                        mapSection.setAttribute('hidden', '');
+                    }
+                    if (mapLinkWrapper) {
+                        mapLinkWrapper.setAttribute('hidden', '');
+                    }
+                    if (mapLink) {
+                        mapLink.removeAttribute('href');
+                    }
+                }
+
+                function showMap() {
+                    if (mapSection) {
+                        mapSection.removeAttribute('hidden');
+                    }
+                }
+
+                function updateMap(lat, lon, angle) {
+                    if (lat === null || typeof lat === 'undefined' || lon === null || typeof lon === 'undefined') {
+                        hideMap();
+                        return;
+                    }
+
+                    var map = ensureMap();
+                    if (!map || !markerInstance) {
+                        return;
+                    }
+
+                    var target = [Number(lat), Number(lon)];
+                    showMap();
+                    map.setView(target, map.getZoom() || defaultZoom);
+                    markerInstance.setLatLng(target);
+                    markerInstance.setIcon(buildIcon(angle));
+                    updateMapLink(lat, lon);
+
+                    window.requestAnimationFrame(function () {
+                        map.invalidateSize();
+                    });
+                }
+
+                if (initialLat !== null && initialLon !== null) {
+                    updateMap(initialLat, initialLon, directionAngle);
+                } else {
+                    hideMap();
+                }
+
+                window.__galleryUpdateLocation = function (lat, lon) {
+                    if (lat === null || typeof lat === 'undefined' || lon === null || typeof lon === 'undefined') {
+                        updateMap(null, null, null);
+                        return;
+                    }
+                    updateMap(lat, lon, null);
+                };
             })();
         </script>
     {% endif %}
     <footer>
         <p>All photos copyright Waldo Jaquith, unless otherwise indicated. Photos are published under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en">the Creative Commons BY-NC-SA 4.0 license</a>.</p>
     </footer>
-    {% if map_lat is not null and map_lon is not null %}
-        <script src="{{ base_path ~ '/assets/vendor/leaflet/leaflet.js' }}"></script>
-        <script>
-            (function () {
-                var lat = {{ map_lat|json_encode }};
-                var lon = {{ map_lon|json_encode }};
-
-                function initMap() {
-                    if (typeof L === 'undefined') {
-                        return;
-                    }
-
-                    var map = L.map('photo-map').setView([lat, lon], 16);
-
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        maxZoom: 19,
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
-                    }).addTo(map);
-
-                    var iconHtml;
-                    {% if map_direction_angle is not null %}
-                        iconHtml = '<div class="direction-arrow" style="transform: rotate({{ map_direction_angle }}deg);"></div>';
-                    {% else %}
-                        iconHtml = '<div class="direction-dot"></div>';
-                    {% endif %}
-
-                    var icon = L.divIcon({
-                        className: 'direction-icon',
-                        html: iconHtml,
-                        iconSize: [36, 36],
-                        iconAnchor: [18, 18]
-                    });
-
-                    L.marker([lat, lon], { icon: icon }).addTo(map);
-                }
-
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', initMap);
-                } else {
-                    initMap();
-                }
-            })();
-        </script>
-    {% endif %}
 </body>
 </html>
