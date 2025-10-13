@@ -13,6 +13,7 @@
     ],
     "scripts": {
         "serve": "php -S localhost:8000 -t .",
-        "build": "bash scripts/build.sh"
+        "build": "bash scripts/build.sh",
+        "export": "php scripts/export-static.php"
     }
 }
