@@ -124,12 +124,10 @@ if ($mapLat !== null && $mapLon !== null) {
 }
 
 $detailFields = [
-    'Filename' => $filename,
     'Width' => $width,
     'Height' => $height,
     'Author' => $author,
-    'License' => $license,
-    'Hash' => $hashValue,
+    'License' => $license
 ];
 
 $renderer = new GalleryTemplateRenderer();
