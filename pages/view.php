@@ -36,6 +36,34 @@ if ($photoRow === null) {
     die('Photo not found in the library.');
 }
 
+/**
+ * @param mixed $value
+ */
+$exifValueToString = static function ($value): string {
+    if ($value === null) {
+        return '';
+    }
+
+    if (is_array($value)) {
+        $parts = [];
+        foreach ($value as $piece) {
+            if (is_scalar($piece)) {
+                $part = trim((string) $piece);
+                if ($part !== '') {
+                    $parts[] = $part;
+                }
+            }
+        }
+        return trim(implode(' ', $parts));
+    }
+
+    if (is_scalar($value)) {
+        return trim((string) $value);
+    }
+
+    return '';
+};
+
 $filename = $photoRow['filename'] ?? null;
 
 if ($filename === null) {
@@ -87,7 +115,22 @@ $width = $photoRow['width'] ?? null;
 $height = $photoRow['height'] ?? null;
 $author = $photoRow['author'] ?? 'Waldo Jaquith';
 $license = $photoRow['license'] ?? 'CC BY-NC-SA 4.0';
-$hashValue = $photoRow['hash'] ?? '';
+
+$cameraMake = $exifValueToString($exifData['Make'] ?? null);
+$cameraModel = $exifValueToString($exifData['Model'] ?? null);
+$cameraLabel = null;
+
+if ($cameraMake !== '' && $cameraModel !== '') {
+    if (stripos($cameraModel, $cameraMake) !== false) {
+        $cameraLabel = $cameraModel;
+    } else {
+        $cameraLabel = $cameraMake . ' ' . $cameraModel;
+    }
+} elseif ($cameraModel !== '') {
+    $cameraLabel = $cameraModel;
+} elseif ($cameraMake !== '') {
+    $cameraLabel = $cameraMake;
+}
 
 $mapLat = isset($photoRow['gps_latitude']) ? (float) $photoRow['gps_latitude'] : null;
 $mapLon = isset($photoRow['gps_longitude']) ? (float) $photoRow['gps_longitude'] : null;
@@ -127,8 +170,13 @@ $detailFields = [
     'Width' => $width,
     'Height' => $height,
     'Author' => $author,
-    'License' => $license
 ];
+
+if ($cameraLabel !== null) {
+    $detailFields['Camera'] = $cameraLabel;
+}
+
+$detailFields['License'] = $license;
 
 $renderer = new GalleryTemplateRenderer();
 
