@@ -44,7 +44,7 @@ $photosDirFs = rtrim($photosDir, '/\\') . '/';
 $thumbnailsDirFs = rtrim($thumbnailsDir, '/\\') . '/';
 
 $insertPhoto = $db->prepare(<<<'SQL'
-INSERT OR REPLACE INTO photos (
+INSERT INTO photos (
     id, filename, title, description, date_taken,
     width, height, hash, author, license,
     gps_latitude, gps_longitude, gps_img_direction, gps_img_direction_ref,
@@ -55,6 +55,14 @@ INSERT OR REPLACE INTO photos (
     :gps_lat, :gps_lon, :gps_dir, :gps_dir_ref,
     strftime('%s', 'now')
 )
+ON CONFLICT(id) DO UPDATE SET
+    filename = excluded.filename,
+    width = excluded.width,
+    height = excluded.height,
+    hash = excluded.hash,
+    author = excluded.author,
+    license = excluded.license,
+    updated_at = excluded.updated_at
 SQL
 );
 
