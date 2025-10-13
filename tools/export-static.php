@@ -45,6 +45,7 @@ echo "Rendering pages...\n";
 
 renderHome($appRoot, $outputDir);
 renderMap($appRoot, $outputDir);
+renderAbout($appRoot, $outputDir);
 renderViewPages($appRoot, $outputDir, $libraryData);
 renderViewRedirect($outputDir);
 
@@ -85,6 +86,13 @@ function renderMap(string $appRoot, string $outputDir): void
     $html = captureInclude($appRoot . '/pages/map.php');
     $html = rewriteForStatic($html, '../');
     writeFile($outputDir . '/map/index.html', $html);
+}
+
+function renderAbout(string $appRoot, string $outputDir): void
+{
+    $html = captureInclude($appRoot . '/pages/about.php');
+    $html = rewriteForStatic($html, '../');
+    writeFile($outputDir . '/about/index.html', $html);
 }
 
 /**
@@ -196,6 +204,8 @@ function rewriteRootLinks(string $html, string $relativeRoot): string
         "href='/map/'" => "href='" . $relativeRoot . "map/'",
         'href="/descriptions/"' => 'href="' . $relativeRoot . 'descriptions/"',
         "href='/descriptions/'" => "href='" . $relativeRoot . "descriptions/'",
+        'href="/about/"' => 'href="' . $relativeRoot . 'about/"',
+        "href='/about/'" => "href='" . $relativeRoot . "about/'",
     ];
 
     foreach ($replacements as $search => $replace) {

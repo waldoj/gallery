@@ -71,6 +71,9 @@ switch ($route) {
     case 'map':
         require $appRoot . '/pages/map.php';
         break;
+    case 'about':
+        require $appRoot . '/pages/about.php';
+        break;
     case 'descriptions':
         require $appRoot . '/pages/descriptions.php';
         break;
