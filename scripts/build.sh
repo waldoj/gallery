@@ -44,8 +44,10 @@ echo "==> Updating library metadata"
 php "${ROOT_DIR}/updater.php"
 
 ORIGINALS_DIR="${ROOT_DIR}/originals"
-if find "${ORIGINALS_DIR}" -maxdepth 1 -type f 2>/dev/null | grep -q .; then
-  if ! find "${PHOTOS_DIR}" -maxdepth 1 -type f 2>/dev/null | grep -q .; then
+original_sample="$(find "${ORIGINALS_DIR}" -maxdepth 1 -type f -print -quit 2>/dev/null || true)"
+if [ -n "${original_sample}" ]; then
+  thumbnail_sample="$(find "${PHOTOS_DIR}" -maxdepth 1 -type f -print -quit 2>/dev/null || true)"
+  if [ -z "${thumbnail_sample}" ]; then
     echo "ERROR: No thumbnails found in '${PHOTOS_DIR}' after updater ran." >&2
     echo "Ensure originals are readable and that GD/Imagick can process them." >&2
     exit 1
