@@ -24,6 +24,14 @@ composer export
 
 The resulting files are stored in `build/`, and can be uploaded to the host.
 
+To copy the static export to a remote server, configure `$deployment_host` and `$deployment_path` in `settings.inc.php`, then run:
+
+```
+composer deploy
+```
+
+The script uses `scp -r` to copy the contents of `build/` into the configured remote directory.
+
 ## License
 
 MIT.

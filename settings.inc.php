@@ -9,3 +9,10 @@ $sizes = array(
 );
 $photos_dir = 'originals/';
 $thumbnails_dir = 'photos/';
+
+
+// For example, $deployment_host = 'user@example.com';
+$deployment_host = $deployment_host ?? null;
+
+// For example, $deployment_path = '/var/www/gallery';
+$deployment_path = $deployment_path ?? null;
