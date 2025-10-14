@@ -6,8 +6,6 @@ declare(strict_types=1);
  * Renders a single photo and its metadata using $_REQUEST['id'] as the unique identifier.
  */
 
-use Symfony\Component\Yaml\Yaml;
-
 $appRoot = $GLOBALS['__gallery_root__'] ?? dirname(__DIR__);
 
 require $appRoot . '/settings.inc.php';
@@ -117,49 +115,6 @@ $width = $photoRow['width'] ?? null;
 $height = $photoRow['height'] ?? null;
 $author = $photoRow['author'] ?? 'Waldo Jaquith';
 $license = $photoRow['license'] ?? 'CC BY-NC-SA 4.0';
-
-$libraryMetadata = null;
-$libraryMetadataPath = $appRoot . '/library.yml';
-if (is_file($libraryMetadataPath) && is_readable($libraryMetadataPath)) {
-    try {
-        $parsedLibrary = Yaml::parseFile($libraryMetadataPath);
-        if (is_array($parsedLibrary) && isset($parsedLibrary[$photoIdString]) && is_array($parsedLibrary[$photoIdString])) {
-            $libraryMetadata = $parsedLibrary[$photoIdString];
-        }
-    } catch (Throwable $libraryException) {
-        $libraryMetadata = null;
-    }
-}
-
-if (is_array($libraryMetadata)) {
-    if (isset($libraryMetadata['title']) && is_string($libraryMetadata['title']) && trim($libraryMetadata['title']) !== '') {
-        $title = trim($libraryMetadata['title']);
-    }
-    if (isset($libraryMetadata['description']) && is_string($libraryMetadata['description']) && trim($libraryMetadata['description']) !== '') {
-        $description = trim($libraryMetadata['description']);
-    }
-    if (isset($libraryMetadata['date_taken']) && is_string($libraryMetadata['date_taken']) && trim($libraryMetadata['date_taken']) !== '') {
-        $dateTaken = trim($libraryMetadata['date_taken']);
-    }
-    if (isset($libraryMetadata['width']) && $libraryMetadata['width'] !== null) {
-        $widthCandidate = is_numeric($libraryMetadata['width']) ? (int) $libraryMetadata['width'] : null;
-        if ($widthCandidate !== null) {
-            $width = $widthCandidate;
-        }
-    }
-    if (isset($libraryMetadata['height']) && $libraryMetadata['height'] !== null) {
-        $heightCandidate = is_numeric($libraryMetadata['height']) ? (int) $libraryMetadata['height'] : null;
-        if ($heightCandidate !== null) {
-            $height = $heightCandidate;
-        }
-    }
-    if (isset($libraryMetadata['author']) && is_string($libraryMetadata['author']) && trim($libraryMetadata['author']) !== '') {
-        $author = trim($libraryMetadata['author']);
-    }
-    if (isset($libraryMetadata['license']) && is_string($libraryMetadata['license']) && trim($libraryMetadata['license']) !== '') {
-        $license = trim($libraryMetadata['license']);
-    }
-}
 
 $cameraMake = $exifValueToString($exifData['Make'] ?? null);
 $cameraModel = $exifValueToString($exifData['Model'] ?? null);

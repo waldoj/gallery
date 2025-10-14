@@ -73,10 +73,6 @@
     {% include '_menu.html.twig' %}
     <main>
         <h1>Photos Missing Descriptions</h1>
-        <p class="intro">
-            Copy the YAML snippet next to each thumbnail, add the missing details, and paste it into <code>library.yml</code> under the matching photo ID.
-        </p>
-
         {% if entries is empty %}
             <p>All photos already have descriptions. Nice work!</p>
         {% else %}
