@@ -14,7 +14,7 @@
     "scripts": {
         "serve": "php -S localhost:8000 -t .",
         "build": "bash scripts/build.sh",
-        "export": "php tools/export-static.php",
+        "export": "php scripts/export-static.php",
         "deploy": "bash scripts/deploy.sh"
     }
 }
