@@ -115,6 +115,7 @@ $width = $photoRow['width'] ?? null;
 $height = $photoRow['height'] ?? null;
 $author = $photoRow['author'] ?? 'Waldo Jaquith';
 $license = $photoRow['license'] ?? 'CC BY-NC-SA 4.0';
+$altText = isset($photoRow['alt_text']) ? trim((string) $photoRow['alt_text']) : '';
 
 $cameraMake = $exifValueToString($exifData['Make'] ?? null);
 $cameraModel = $exifValueToString($exifData['Model'] ?? null);
@@ -187,6 +188,7 @@ echo $renderer->render('view.html.twig', [
     'photo_path' => $photoUrl,
     'photo_id' => $photoIdString,
     'raw_description' => $description,
+    'alt_text' => $altText,
     'detail_fields' => $detailFields,
     'download_url' => $downloadUrl,
     'map_lat' => $mapLat,

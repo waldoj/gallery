@@ -89,6 +89,7 @@ foreach ($libraryData as $record) {
         'date_taken' => $dateTaken,
         'thumbnail_path' => gallery_public_url_path((string) $thumbnailPath),
         'link' => gallery_public_url_path('/view/?id=' . rawurlencode($photoIdString)),
+        'alt_text' => isset($record['alt_text']) ? trim((string) $record['alt_text']) : '',
     ];
 }
 

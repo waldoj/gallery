@@ -26,7 +26,7 @@
             <strong>Taken:</strong>
             <span id="photo-date-value">{{ date_taken|e }}</span>
         </p>
-        <img class="photo__image" src="{{ photo_path|e }}" alt="{{ title|e }}">
+        <img class="photo__image" src="{{ photo_path|e }}" alt="{{ (alt_text is not empty ? alt_text : title)|e }}">
 
         <div class="meta-section" id="photo-description-section" {% if description is empty %}hidden{% endif %}>
             <h2>Description</h2>
@@ -73,6 +73,9 @@
 
                     <label for="photo-editor-description-input">Description</label>
                     <textarea id="photo-editor-description-input" name="description" rows="4">{{ raw_description|default('')|e }}</textarea>
+
+                    <label for="photo-editor-alt-text-input">Alt text</label>
+                    <textarea id="photo-editor-alt-text-input" name="alt_text" rows="3">{{ alt_text|default('')|e }}</textarea>
 
                     <label for="photo-editor-date-input">Date taken</label>
                     <input type="text" id="photo-editor-date-input" name="date_taken" value="{{ date_taken|default('')|e('html_attr') }}">
@@ -133,6 +136,7 @@
                 var statusNode = document.getElementById('photo-edit-status');
                 var titleInput = document.getElementById('photo-editor-title-input');
                 var descriptionInput = document.getElementById('photo-editor-description-input');
+                var altTextInput = document.getElementById('photo-editor-alt-text-input');
                 var dateInput = document.getElementById('photo-editor-date-input');
                 var latInput = document.getElementById('photo-editor-latitude-input');
                 var lonInput = document.getElementById('photo-editor-longitude-input');
@@ -144,6 +148,7 @@
                 var dateValueNode = document.getElementById('photo-date-value');
                 var descriptionSection = document.getElementById('photo-description-section');
                 var descriptionNode = document.getElementById('photo-description-content');
+                var mainImage = document.querySelector('.photo__image');
                 var endpoint = {{ photo_metadata_url|json_encode|raw }};
                 var photoId = {{ photo_id|json_encode|raw }};
                 var defaultLat = {{ default_latitude|json_encode|raw }};
@@ -478,6 +483,7 @@
                         id: photoId,
                         title: titleValue,
                         description: descriptionInput ? descriptionInput.value : '',
+                        alt_text: altTextInput ? altTextInput.value : '',
                         date_taken: dateInput ? dateInput.value.trim() : '',
                         latitude: coordinates.lat,
                         longitude: coordinates.lon
@@ -517,6 +523,15 @@
 
                         if (descriptionInput) {
                             descriptionInput.value = photo.description != null ? photo.description : '';
+                        }
+
+                        if (altTextInput) {
+                            altTextInput.value = photo.alt_text != null ? photo.alt_text : '';
+                        }
+
+                        if (mainImage) {
+                            var nextAlt = photo.alt_text != null && photo.alt_text !== '' ? photo.alt_text : (photo.title || titleValue);
+                            mainImage.setAttribute('alt', nextAlt);
                         }
 
                         if (descriptionSection && descriptionNode) {

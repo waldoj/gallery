@@ -59,6 +59,9 @@ $dateTakenRaw = isset($payload['date_taken']) ? (string) $payload['date_taken'] 
 $dateTakenRaw = trim($dateTakenRaw);
 $dateTaken = $dateTakenRaw === '' ? null : $dateTakenRaw;
 
+$altTextRaw = isset($payload['alt_text']) ? trim((string) $payload['alt_text']) : '';
+$altText = $altTextRaw === '' ? null : $altTextRaw;
+
 $latitudeInput = isset($payload['latitude']) ? trim((string) $payload['latitude']) : '';
 $longitudeInput = isset($payload['longitude']) ? trim((string) $payload['longitude']) : '';
 
@@ -100,7 +103,7 @@ if ($latitudeInput !== '' || $longitudeInput !== '') {
 $databasePath = rtrim($appRoot, '/\\') . '/' . ltrim($database_path ?? 'gallery.db', '/\\');
 
 try {
-    $updated = gallery_update_photo_metadata($databasePath, $photoId, $title, $description, $dateTaken, $latitude, $longitude);
+    $updated = gallery_update_photo_metadata($databasePath, $photoId, $title, $description, $dateTaken, $altText, $latitude, $longitude);
 } catch (Throwable $throwable) {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to update photo metadata.']);
@@ -121,6 +124,7 @@ echo json_encode([
         'title' => $updated['title'] ?? $title,
         'description' => $updated['description'] ?? $description,
         'date_taken' => $updated['date_taken'] ?? $dateTakenRaw,
+        'alt_text' => $updated['alt_text'] ?? $altTextRaw,
         'latitude' => array_key_exists('gps_latitude', $updated) && $updated['gps_latitude'] !== null
             ? (float) $updated['gps_latitude']
             : null,

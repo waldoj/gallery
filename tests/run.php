@@ -91,6 +91,7 @@ CREATE TABLE photos (
     gps_longitude REAL,
     gps_img_direction REAL,
     gps_img_direction_ref TEXT,
+    alt_text TEXT,
     created_at INTEGER DEFAULT (strftime('%s', 'now')),
     updated_at INTEGER DEFAULT (strftime('%s', 'now'))
 )
@@ -110,8 +111,9 @@ SQL);
     $photoStmt = $db->prepare('INSERT INTO photos (
         id, filename, title, description, date_taken,
         width, height, hash, author, license,
-        gps_latitude, gps_longitude, gps_img_direction, gps_img_direction_ref
-    ) VALUES (:id, :filename, :title, :description, :date_taken, :width, :height, :hash, :author, :license, :gps_lat, :gps_lon, :gps_dir, :gps_dir_ref)');
+        gps_latitude, gps_longitude, gps_img_direction, gps_img_direction_ref,
+        alt_text
+    ) VALUES (:id, :filename, :title, :description, :date_taken, :width, :height, :hash, :author, :license, :gps_lat, :gps_lon, :gps_dir, :gps_dir_ref, :alt_text)');
 
     foreach ($photos as $photo) {
         $photoStmt->reset();
@@ -160,6 +162,12 @@ SQL);
             $photoStmt->bindValue(':gps_dir_ref', $dirRef, SQLITE3_TEXT);
         } else {
             $photoStmt->bindValue(':gps_dir_ref', null, SQLITE3_NULL);
+        }
+        $altText = $photo['alt_text'] ?? null;
+        if ($altText !== null && $altText !== '') {
+            $photoStmt->bindValue(':alt_text', $altText, SQLITE3_TEXT);
+        } else {
+            $photoStmt->bindValue(':alt_text', null, SQLITE3_NULL);
         }
 
         $photoStmt->execute();
@@ -479,6 +487,68 @@ $tests = [
         $_REQUEST = $originalRequestArray;
 
         assertTrue(strpos($html, 'Rachel playing cards') !== false, 'View directory index should render the photo');
+    },
+    'view_uses_alt_text_when_present' => function (): void {
+        if (!function_exists('imagecreatetruecolor')) {
+            return;
+        }
+
+        with_temp_dir(function (string $dir): void {
+            $originalsDir = $dir . '/originals';
+            mkdir($originalsDir);
+            $photosDir = $dir . '/photos';
+            mkdir($photosDir);
+
+            $image = imagecreatetruecolor(8, 8);
+            $white = imagecolorallocate($image, 255, 255, 255);
+            imagefilledrectangle($image, 0, 0, 7, 7, $white);
+            imagejpeg($image, $originalsDir . '/alt-photo.jpg');
+            imagedestroy($image);
+
+            create_test_database($dir . '/gallery.db', [
+                [
+                    'id' => 'alt123',
+                    'filename' => 'alt-photo.jpg',
+                    'title' => 'Fallback Title',
+                    'alt_text' => 'Custom testing alt text',
+                ],
+            ]);
+
+            file_put_contents($dir . '/settings.inc.php', "<?php\n"
+                . '$database_path = ' . var_export('gallery.db', true) . ";\n"
+                . '$sizes = ' . var_export(['thumbnail' => 150], true) . ";\n"
+                . '$photos_dir = ' . var_export('originals/', true) . ";\n"
+                . '$thumbnails_dir = ' . var_export('photos/', true) . ";\n"
+            );
+            file_put_contents($dir . '/functions.inc.php', "<?php require_once '" . addslashes(__DIR__ . '/../functions.inc.php') . "';");
+
+            $previousRoot = $GLOBALS['__gallery_root__'] ?? null;
+            $previousCwd = getcwd();
+            $previousGet = $_GET ?? [];
+            $previousRequest = $_REQUEST ?? [];
+
+            $GLOBALS['__gallery_root__'] = $dir;
+            chdir($dir);
+
+            $_GET = ['id' => 'alt123'];
+            $_REQUEST = $_GET;
+
+            ob_start();
+            include __DIR__ . '/../pages/view.php';
+            $html = ob_get_clean();
+
+            chdir($previousCwd);
+            if ($previousRoot === null) {
+                unset($GLOBALS['__gallery_root__']);
+            } else {
+                $GLOBALS['__gallery_root__'] = $previousRoot;
+            }
+            $_GET = $previousGet;
+            $_REQUEST = $previousRequest;
+
+            assertTrue(strpos($html, 'Custom testing alt text') !== false, 'Alt text should appear in the rendered page');
+            assertTrue(strpos($html, 'alt="Custom testing alt text"') !== false, 'Image alt attribute should use the stored alt text');
+        });
     },
 ];
 

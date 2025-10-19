@@ -23,9 +23,24 @@ $db->enableExceptions(true);
 $db->exec('PRAGMA foreign_keys = ON');
 $db->exec('BEGIN TRANSACTION');
 
+$columnsResult = $db->query('PRAGMA table_info(photos)');
+$hasAltTextColumn = false;
+if ($columnsResult instanceof SQLite3Result) {
+    while ($columnRow = $columnsResult->fetchArray(SQLITE3_ASSOC)) {
+        if (($columnRow['name'] ?? '') === 'alt_text') {
+            $hasAltTextColumn = true;
+            break;
+        }
+    }
+    $columnsResult->finalize();
+}
+if ($hasAltTextColumn === false) {
+    $db->exec('ALTER TABLE photos ADD COLUMN alt_text TEXT');
+}
+
 $existingPhotos = [];
 $existingHashes = [];
-$result = $db->query('SELECT id, filename, hash FROM photos');
+$result = $db->query('SELECT id, filename, hash, title, description, alt_text FROM photos');
 while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
     $existingPhotos[$row['id']] = $row;
     if (!empty($row['hash'])) {
@@ -48,11 +63,13 @@ INSERT INTO photos (
     id, filename, title, description, date_taken,
     width, height, hash, author, license,
     gps_latitude, gps_longitude, gps_img_direction, gps_img_direction_ref,
+    alt_text,
     updated_at
 ) VALUES (
     :id, :filename, :title, :description, :date_taken,
     :width, :height, :hash, :author, :license,
     :gps_lat, :gps_lon, :gps_dir, :gps_dir_ref,
+    :alt_text,
     strftime('%s', 'now')
 )
 ON CONFLICT(id) DO UPDATE SET
@@ -62,6 +79,7 @@ ON CONFLICT(id) DO UPDATE SET
     hash = excluded.hash,
     author = excluded.author,
     license = excluded.license,
+    alt_text = COALESCE(NULLIF(excluded.alt_text, ''), photos.alt_text),
     updated_at = excluded.updated_at
 SQL
 );
@@ -100,6 +118,8 @@ foreach ($files as $file) {
     $exif = GalleryExifHelper::read($photoPath);
     $processor->normalizeOrientation($photoPath, $exif);
     [$width, $height] = $processor->getDimensions($photoPath);
+
+    $existingRecord = $existingPhotos[$photoId] ?? null;
 
     $title = $file;
     $description = '';
@@ -141,6 +161,43 @@ foreach ($files as $file) {
     $insertPhoto->bindValue(':gps_lon', $gpsLon, $gpsLon === null ? SQLITE3_NULL : SQLITE3_FLOAT);
     $insertPhoto->bindValue(':gps_dir', $gpsDir, $gpsDir === null ? SQLITE3_NULL : SQLITE3_FLOAT);
     $insertPhoto->bindValue(':gps_dir_ref', $gpsDirRef, $gpsDirRef === null || $gpsDirRef === '' ? SQLITE3_NULL : SQLITE3_TEXT);
+
+    $altText = null;
+    if (is_array($existingRecord)) {
+        if (!empty($existingRecord['title'])) {
+            $title = (string) $existingRecord['title'];
+        }
+        if (!empty($existingRecord['description'])) {
+            $description = (string) $existingRecord['description'];
+        }
+        if (isset($existingRecord['alt_text']) && (string) $existingRecord['alt_text'] !== '') {
+            $altText = (string) $existingRecord['alt_text'];
+        }
+    }
+
+    $apiKey = isset($openai_api_key) ? trim((string) $openai_api_key) : '';
+    $model = isset($openai_alt_text_model) && trim((string) $openai_alt_text_model) !== ''
+        ? trim((string) $openai_alt_text_model)
+        : 'gpt-4o-mini';
+    if (($altText === null || $altText === '') && $apiKey !== '') {
+        $generated = gallery_generate_alt_text($apiKey, $model, [
+            'title' => $title,
+            'description' => $description,
+            'filename' => $file,
+        ], $photoPath);
+        if ($generated !== null && $generated !== '') {
+            $altText = $generated;
+        }
+    }
+
+    if ($altText !== null) {
+        $altText = trim($altText);
+        if ($altText === '') {
+            $altText = null;
+        }
+    }
+
+    $insertPhoto->bindValue(':alt_text', $altText, $altText === null ? SQLITE3_NULL : SQLITE3_TEXT);
     $insertPhoto->execute();
 
     $deleteExif->reset();

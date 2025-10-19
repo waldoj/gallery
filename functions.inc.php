@@ -52,6 +52,113 @@ function gallery_is_static_export(): bool
     return defined('GALLERY_STATIC_EXPORT') && constant('GALLERY_STATIC_EXPORT') === true;
 }
 
+function gallery_generate_alt_text(string $apiKey, string $model, array $context, ?string $imagePath = null): ?string
+{
+
+    if ($apiKey === '' || !function_exists('curl_init')) {
+        return null;
+    }
+
+    $title = trim((string) ($context['title'] ?? ''));
+    $description = trim((string) ($context['description'] ?? ''));
+    $filename = trim((string) ($context['filename'] ?? ''));
+
+    $imageDataUri = null;
+    if ($imagePath !== null && $imagePath !== '' && is_readable($imagePath) && is_file($imagePath)) {
+        $imageBinary = @file_get_contents($imagePath);
+        if ($imageBinary !== false && $imageBinary !== '') {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime = $finfo->file($imagePath) ?: 'application/octet-stream';
+            $imageDataUri = 'data:' . $mime . ';base64,' . base64_encode($imageBinary);
+        }
+    }
+
+    if ($imageDataUri === null) {
+        return null;
+    }
+
+    $promptParts = [];
+    if ($title !== '') {
+        $promptParts[] = 'Title: ' . $title;
+    }
+    if ($description !== '') {
+        $promptParts[] = 'Description: ' . $description;
+    }
+    if ($filename !== '') {
+        $promptParts[] = 'Filename: ' . $filename;
+    }
+
+    $promptParts[] = 'Provide concise alt text (max ~30 words) describing the photo for someone who cannot see it. Stick to observable details. Avoid starting with "Image of".';
+    $prompt = implode("\n", $promptParts);
+
+    try {
+        $payload = json_encode([
+            'model' => $model,
+            'messages' => [
+                ['role' => 'system', 'content' => 'You write accessible alt text for photographs.'],
+                [
+                    'role' => 'user',
+                    'content' => [
+                        ['type' => 'text', 'text' => $prompt],
+                        ['type' => 'image_url', 'image_url' => ['url' => $imageDataUri]],
+                    ],
+                ],
+            ],
+            'temperature' => 0.2,
+            'max_tokens' => 120,
+        ], JSON_THROW_ON_ERROR);
+    } catch (Throwable $throwable) {
+        return null;
+    }
+
+    $ch = curl_init('https://api.openai.com/v1/chat/completions');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $apiKey,
+        ],
+        CURLOPT_TIMEOUT => 30,
+    ]);
+
+    $responseBody = curl_exec($ch);
+    if ($responseBody === false) {
+        curl_close($ch);
+        return null;
+    }
+
+    $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if ($status < 200 || $status >= 300) {
+        return null;
+    }
+
+    try {
+        /** @var array<string, mixed> $decoded */
+        $decoded = json_decode($responseBody, true, 512, JSON_THROW_ON_ERROR);
+        if (!isset($decoded['choices'][0]['message']['content'])) {
+            return null;
+        }
+        $content = trim((string) $decoded['choices'][0]['message']['content']);
+    } catch (Throwable $throwable) {
+        return null;
+    }
+
+    if ($content === '') {
+        return null;
+    }
+
+    // Remove extraneous quotes if present.
+    if (($content[0] ?? '') === '"' && (substr($content, -1) === '"')) {
+        $content = trim($content, '"');
+    }
+
+    return $content;
+}
+
 /**
  * @return array<string, mixed>|null
  */
@@ -61,6 +168,7 @@ function gallery_update_photo_metadata(
     string $title,
     string $description,
     ?string $dateTaken,
+    ?string $altText = null,
     ?float $latitude = null,
     ?float $longitude = null
 ): ?array {
@@ -85,6 +193,7 @@ function gallery_update_photo_metadata(
              SET title = :title,
                  description = :description,
                  date_taken = :date_taken,
+                 alt_text = :alt_text,
                  gps_latitude = :gps_latitude,
                  gps_longitude = :gps_longitude,
                  updated_at = strftime(\'%s\', \'now\')
@@ -96,6 +205,16 @@ function gallery_update_photo_metadata(
             $updateStmt->bindValue(':date_taken', null, SQLITE3_NULL);
         } else {
             $updateStmt->bindValue(':date_taken', $dateTaken, SQLITE3_TEXT);
+        }
+        if ($altText === null) {
+            $updateStmt->bindValue(':alt_text', null, SQLITE3_NULL);
+        } else {
+            $trimmedAlt = trim($altText);
+            if ($trimmedAlt === '') {
+                $updateStmt->bindValue(':alt_text', null, SQLITE3_NULL);
+            } else {
+                $updateStmt->bindValue(':alt_text', $trimmedAlt, SQLITE3_TEXT);
+            }
         }
         if ($latitude === null) {
             $updateStmt->bindValue(':gps_latitude', null, SQLITE3_NULL);
@@ -861,7 +980,7 @@ final class GalleryDatabase
     public function getAllPhotos(): array
     {
         $sql = 'SELECT id, filename, title, description, date_taken, width, height, hash, author, license,
-                       gps_latitude, gps_longitude, gps_img_direction, gps_img_direction_ref
+                       gps_latitude, gps_longitude, gps_img_direction, gps_img_direction_ref, alt_text
                 FROM photos
                 ORDER BY date_taken DESC, id';
         return $this->fetchAllAssoc($sql);
@@ -897,7 +1016,7 @@ final class GalleryDatabase
         $stmt = $this->connection->prepare(
             'SELECT id, filename, title, description, date_taken,
                     width, height, hash, author, license,
-                    gps_latitude, gps_longitude, gps_img_direction, gps_img_direction_ref
+                    gps_latitude, gps_longitude, gps_img_direction, gps_img_direction_ref, alt_text
              FROM photos WHERE id = :id'
         );
         $stmt->bindValue(':id', $photoId, SQLITE3_TEXT);
