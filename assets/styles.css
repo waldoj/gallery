@@ -247,6 +247,8 @@ dd {
     max-width: 520px;
     width: 100%;
     padding: 24px;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .photo-editor-modal form {
