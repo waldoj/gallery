@@ -84,6 +84,7 @@ $photoIdString = (string) ($photoRow['id'] ?? $photoId);
 
 $preferredSizes = ['large', 'medium', 'thumbnail'];
 $displayPath = null;
+$shareImagePath = null;
 
 foreach ($preferredSizes as $sizeName) {
     $candidateFs = $thumbnailsDirFs . $photoIdString . '_' . $sizeName . $extensionSuffix;
@@ -108,6 +109,20 @@ $photoPath = $displayPath ?? $originalPath;
 $photoUrl = gallery_public_url_path($photoPath);
 $downloadUrl = gallery_public_url_path($originalPath);
 
+$shareCandidates = ['thumbsquare', 'thumbnail', 'medium', 'large'];
+foreach ($shareCandidates as $candidate) {
+    $cleanCandidate = preg_replace('/[^a-z0-9_\-]/i', '', (string) $candidate);
+    $candidateFs = $thumbnailsDirFs . $photoIdString . '_' . $cleanCandidate . $extensionSuffix;
+    if (is_file($candidateFs)) {
+        $shareImagePath = $thumbnails_dir . $photoIdString . '_' . $cleanCandidate . $extensionSuffix;
+        break;
+    }
+}
+if ($shareImagePath === null) {
+    $shareImagePath = $photoPath;
+}
+$shareImageUrl = gallery_public_url_path($shareImagePath);
+
 $title = $photoRow['title'] !== '' ? $photoRow['title'] : pathinfo($filename, PATHINFO_FILENAME);
 $description = $photoRow['description'] ?? '';
 $dateTaken = $photoRow['date_taken'] ?? '';
@@ -116,6 +131,9 @@ $height = $photoRow['height'] ?? null;
 $author = $photoRow['author'] ?? 'Waldo Jaquith';
 $license = $photoRow['license'] ?? 'CC BY-NC-SA 4.0';
 $altText = isset($photoRow['alt_text']) ? trim((string) $photoRow['alt_text']) : '';
+if ($altText !== '') {
+    $altText = str_replace('"', "'", $altText);
+}
 
 $cameraMake = $exifValueToString($exifData['Make'] ?? null);
 $cameraModel = $exifValueToString($exifData['Model'] ?? null);
@@ -191,6 +209,7 @@ echo $renderer->render('view.html.twig', [
     'alt_text' => $altText,
     'detail_fields' => $detailFields,
     'download_url' => $downloadUrl,
+    'share_image_url' => $shareImageUrl,
     'map_lat' => $mapLat,
     'map_lon' => $mapLon,
     'map_direction_angle' => $mapDirectionAngle,

@@ -4,6 +4,14 @@
     <meta charset="utf-8">
     <title>{{ title|e }} - Charlottesville Photos</title>
     <link rel="stylesheet" href="{{ base_path ~ '/assets/styles.css' }}">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="{{ title|e }}">
+    <meta property="og:description" content="{{ (alt_text is not empty ? alt_text : (description is not empty ? description : title))|striptags|e }}">
+    <meta property="og:image" content="{{ share_image_url|e }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ title|e }}">
+    <meta name="twitter:description" content="{{ (alt_text is not empty ? alt_text : (description is not empty ? description : title))|striptags|e }}">
+    <meta name="twitter:image" content="{{ share_image_url|e }}">
     {% if map_lat is not null or show_editor %}
         <link rel="stylesheet" href="{{ base_path ~ '/assets/vendor/leaflet/leaflet.css' }}" />
     {% endif %}
