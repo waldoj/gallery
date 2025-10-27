@@ -198,6 +198,36 @@ dd {
     background: transparent;
 }
 
+.nearby-photos {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    padding: 0;
+    margin: 0;
+}
+
+.nearby-photo a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.nearby-photo img {
+    width: 100%;
+    max-width: 160px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+.nearby-photo span {
+    text-align: center;
+    font-size: 0.95rem;
+}
+
 .direction-arrow {
     width: 0;
     height: 0;

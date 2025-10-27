@@ -1030,6 +1030,58 @@ final class GalleryDatabase
     }
 
     /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getNearestPhotosById(string $photoId, int $limit = 3): array
+    {
+        if ($limit < 1) {
+            return [];
+        }
+
+        $stmt = $this->connection->prepare(
+            'WITH current AS (
+                 SELECT gps_latitude AS lat, gps_longitude AS lon
+                 FROM photos
+                 WHERE id = :id
+                   AND gps_latitude IS NOT NULL
+                   AND gps_longitude IS NOT NULL
+             )
+             SELECT p.id,
+                    p.filename,
+                    p.title,
+                    p.gps_latitude,
+                    p.gps_longitude,
+                    ((p.gps_latitude - current.lat) * (p.gps_latitude - current.lat) +
+                     (p.gps_longitude - current.lon) * (p.gps_longitude - current.lon)) AS distance_score
+             FROM photos AS p
+             JOIN current ON 1 = 1
+             WHERE p.id != :id
+               AND p.gps_latitude IS NOT NULL
+               AND p.gps_longitude IS NOT NULL
+             ORDER BY distance_score ASC, p.id ASC
+             LIMIT :limit'
+        );
+        $stmt->bindValue(':id', $photoId, SQLITE3_TEXT);
+        $stmt->bindValue(':limit', $limit, SQLITE3_INTEGER);
+        $result = $stmt->execute();
+        if ($result === false) {
+            return [];
+        }
+
+        $rows = [];
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            if ($row === false) {
+                break;
+            }
+            $rows[] = $row;
+        }
+
+        $result->finalize();
+
+        return $rows;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function getExifByPhotoId(string $photoId): array

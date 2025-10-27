@@ -550,6 +550,118 @@ $tests = [
             assertTrue(strpos($html, 'alt="Custom testing alt text"') !== false, 'Image alt attribute should use the stored alt text');
         });
     },
+    'view_shows_nearest_photos' => function (): void {
+        if (!function_exists('imagecreatetruecolor')) {
+            return;
+        }
+
+        with_temp_dir(function (string $dir): void {
+            $originalsDir = $dir . '/originals';
+            mkdir($originalsDir);
+            $photosDir = $dir . '/photos';
+            mkdir($photosDir);
+
+            $filenames = [
+                'main-photo.jpg',
+                'near-one.jpg',
+                'near-two.jpg',
+                'near-three.jpg',
+                'far-photo.jpg',
+            ];
+
+            foreach ($filenames as $filename) {
+                $image = imagecreatetruecolor(8, 8);
+                $white = imagecolorallocate($image, 255, 255, 255);
+                imagefilledrectangle($image, 0, 0, 7, 7, $white);
+                imagejpeg($image, $originalsDir . '/' . $filename);
+                imagedestroy($image);
+            }
+
+            create_test_database($dir . '/gallery.db', [
+                [
+                    'id' => 'main',
+                    'filename' => 'main-photo.jpg',
+                    'title' => 'Main Photo',
+                    'gps_latitude' => 38.0307,
+                    'gps_longitude' => -78.4815,
+                ],
+                [
+                    'id' => 'near1',
+                    'filename' => 'near-one.jpg',
+                    'title' => 'Near One',
+                    'gps_latitude' => 38.0310,
+                    'gps_longitude' => -78.4817,
+                ],
+                [
+                    'id' => 'near2',
+                    'filename' => 'near-two.jpg',
+                    'title' => 'Near Two',
+                    'gps_latitude' => 38.0309,
+                    'gps_longitude' => -78.4816,
+                ],
+                [
+                    'id' => 'near3',
+                    'filename' => 'near-three.jpg',
+                    'title' => 'Near Three',
+                    'gps_latitude' => 38.0312,
+                    'gps_longitude' => -78.4814,
+                ],
+                [
+                    'id' => 'far4',
+                    'filename' => 'far-photo.jpg',
+                    'title' => 'Far Away',
+                    'gps_latitude' => 38.05,
+                    'gps_longitude' => -78.5,
+                ],
+            ]);
+
+            file_put_contents($dir . '/settings.inc.php', "<?php\n"
+                . '$database_path = ' . var_export('gallery.db', true) . ";\n"
+                . '$sizes = ' . var_export(['thumbnail' => 150, 'thumbsquare' => 400], true) . ";\n"
+                . '$photos_dir = ' . var_export('originals/', true) . ";\n"
+                . '$thumbnails_dir = ' . var_export('photos/', true) . ";\n"
+            );
+            file_put_contents($dir . '/functions.inc.php', "<?php require_once '" . addslashes(__DIR__ . '/../functions.inc.php') . "';");
+
+            $previousRoot = $GLOBALS['__gallery_root__'] ?? null;
+            $previousCwd = getcwd();
+            $previousRequest = $_SERVER['REQUEST_URI'] ?? null;
+            $previousGet = $_GET ?? [];
+            $previousRequestArray = $_REQUEST ?? [];
+
+            $GLOBALS['__gallery_root__'] = $dir;
+            chdir($dir);
+
+            $_SERVER['REQUEST_URI'] = '/view/?id=main';
+            $_GET = ['id' => 'main'];
+            $_REQUEST = $_GET;
+
+            ob_start();
+            include __DIR__ . '/../pages/view.php';
+            $html = ob_get_clean();
+
+            chdir($previousCwd);
+            if ($previousRoot === null) {
+                unset($GLOBALS['__gallery_root__']);
+            } else {
+                $GLOBALS['__gallery_root__'] = $previousRoot;
+            }
+            if ($previousRequest === null) {
+                unset($_SERVER['REQUEST_URI']);
+            } else {
+                $_SERVER['REQUEST_URI'] = $previousRequest;
+            }
+            $_GET = $previousGet;
+            $_REQUEST = $previousRequestArray;
+
+            assertTrue(strpos($html, 'Nearby Photos') !== false, 'View page should include nearby photos section');
+            assertEquals(3, substr_count($html, 'class="nearby-photo"'), 'View page should list three nearby photos');
+            assertTrue(strpos($html, '/view/?id=near1') !== false, 'Nearby photos should include the closest photo');
+            assertTrue(strpos($html, '/view/?id=near2') !== false, 'Nearby photos should include the second closest photo');
+            assertTrue(strpos($html, '/view/?id=near3') !== false, 'Nearby photos should include the third closest photo');
+            assertTrue(strpos($html, '/view/?id=far4') === false, 'Nearby photos should not include distant photos');
+        });
+    },
 ];
 
 $passed = 0;

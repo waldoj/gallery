@@ -70,6 +70,22 @@
                 <a id="photo-map-link" href="{{ map_link_url|e }}" target="_blank" rel="noopener noreferrer">Open in OpenStreetMap</a>
             </p>
         </div>
+
+        {% if nearest_photos is not empty %}
+            <div class="meta-section">
+                <h2>Nearby Photos</h2>
+                <ul class="nearby-photos">
+                    {% for neighbor in nearest_photos %}
+                        <li class="nearby-photo">
+                            <a href="{{ neighbor.view_url|e }}">
+                                <img src="{{ neighbor.photo_url|e }}" alt="{{ neighbor.title|e }}">
+                                <span>{{ neighbor.title|e }}</span>
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
     </div>
     {% if show_editor %}
         <div class="photo-editor-overlay" id="photo-editor-overlay" hidden>

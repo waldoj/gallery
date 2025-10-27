@@ -158,6 +158,7 @@ $mapDirectionLabel = null;
 $mapLinkUrl = null;
 $defaultMapLat = 38.030727;
 $defaultMapLon = -78.481511;
+$nearestPhotos = [];
 
 if (isset($photoRow['gps_img_direction'])) {
     $directionAngle = (float) $photoRow['gps_img_direction'];
@@ -183,6 +184,62 @@ if ($mapLat !== null && $mapLon !== null) {
         rawurlencode(number_format($mapLat, 6, '.', '')),
         rawurlencode(number_format($mapLon, 6, '.', ''))
     );
+
+    try {
+        $nearestRows = $database->getNearestPhotosById($photoIdString, 3);
+    } catch (Throwable $throwable) {
+        $nearestRows = [];
+    }
+
+    $neighborPreferredSizes = ['thumbsquare', 'thumbnail', 'medium', 'large'];
+    foreach ($nearestRows as $neighborRow) {
+        $neighborId = isset($neighborRow['id']) ? (string) $neighborRow['id'] : '';
+        $neighborFilename = isset($neighborRow['filename']) ? (string) $neighborRow['filename'] : '';
+        if ($neighborId === '' || $neighborFilename === '') {
+            continue;
+        }
+
+        $neighborExtension = strtolower((string) pathinfo($neighborFilename, PATHINFO_EXTENSION));
+        $neighborExtensionSuffix = $neighborExtension !== '' ? '.' . $neighborExtension : '';
+
+        $neighborDisplayPath = null;
+        foreach ($neighborPreferredSizes as $neighborSizeName) {
+            $cleanNeighborSize = preg_replace('/[^a-z0-9_\-]/i', '', (string) $neighborSizeName);
+            $candidateNeighborFs = $thumbnailsDirFs . $neighborId . '_' . $cleanNeighborSize . $neighborExtensionSuffix;
+            if (is_file($candidateNeighborFs)) {
+                $neighborDisplayPath = $thumbnails_dir . $neighborId . '_' . $cleanNeighborSize . $neighborExtensionSuffix;
+                break;
+            }
+        }
+
+        if ($neighborDisplayPath === null) {
+            foreach ($sizes as $sizeName => $_) {
+                $cleanName = preg_replace('/[^a-z0-9_\-]/i', '', (string) $sizeName);
+                $candidateFs = $thumbnailsDirFs . $neighborId . '_' . $cleanName . $neighborExtensionSuffix;
+                if (is_file($candidateFs)) {
+                    $neighborDisplayPath = $thumbnails_dir . $neighborId . '_' . $cleanName . $neighborExtensionSuffix;
+                    break;
+                }
+            }
+        }
+
+        if ($neighborDisplayPath === null) {
+            $neighborDisplayPath = $photos_dir . $neighborFilename;
+        }
+
+        $neighborTitle = isset($neighborRow['title']) && $neighborRow['title'] !== ''
+            ? (string) $neighborRow['title']
+            : pathinfo($neighborFilename, PATHINFO_FILENAME);
+
+        $neighborUrl = gallery_public_url_path('/view/?id=' . rawurlencode($neighborId));
+
+        $nearestPhotos[] = [
+            'id' => $neighborId,
+            'title' => $neighborTitle,
+            'photo_url' => gallery_public_url_path($neighborDisplayPath),
+            'view_url' => $neighborUrl,
+        ];
+    }
 }
 
 $detailFields = [
@@ -219,5 +276,6 @@ echo $renderer->render('view.html.twig', [
     'default_longitude' => $defaultMapLon,
     'exif' => $exifData,
     'photo_metadata_url' => gallery_public_url_path('photo-metadata'),
+    'nearest_photos' => $nearestPhotos,
     'show_editor' => !gallery_is_static_export(),
 ]);
