@@ -159,6 +159,7 @@ $mapLinkUrl = null;
 $defaultMapLat = 38.030727;
 $defaultMapLon = -78.481511;
 $nearestPhotos = [];
+$mapMarkers = [];
 
 if (isset($photoRow['gps_img_direction'])) {
     $directionAngle = (float) $photoRow['gps_img_direction'];
@@ -242,6 +243,34 @@ if ($mapLat !== null && $mapLon !== null) {
     }
 }
 
+try {
+    $photosWithLocation = $database->getPhotosWithLocation();
+} catch (Throwable $throwable) {
+    $photosWithLocation = [];
+}
+
+foreach ($photosWithLocation as $record) {
+    $recordId = isset($record['id']) ? (string) $record['id'] : '';
+    if ($recordId === '' || $recordId === $photoIdString) {
+        continue;
+    }
+
+    $latitude = isset($record['gps_latitude']) ? (float) $record['gps_latitude'] : null;
+    $longitude = isset($record['gps_longitude']) ? (float) $record['gps_longitude'] : null;
+    if ($latitude === null || $longitude === null) {
+        continue;
+    }
+
+    $titleCandidate = isset($record['title']) ? (string) $record['title'] : '';
+    $mapMarkers[] = [
+        'id' => $recordId,
+        'lat' => $latitude,
+        'lon' => $longitude,
+        'title' => $titleCandidate !== '' ? $titleCandidate : 'Untitled',
+        'url' => gallery_public_url_path('/view/?id=' . rawurlencode($recordId)),
+    ];
+}
+
 $detailFields = [
     'Width' => $width,
     'Height' => $height,
@@ -274,6 +303,7 @@ echo $renderer->render('view.html.twig', [
     'map_link_url' => $mapLinkUrl,
     'default_latitude' => $defaultMapLat,
     'default_longitude' => $defaultMapLon,
+    'map_markers' => $mapMarkers,
     'exif' => $exifData,
     'photo_metadata_url' => gallery_public_url_path('photo-metadata'),
     'nearest_photos' => $nearestPhotos,

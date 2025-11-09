@@ -1,9 +1,13 @@
 body {
     font-family: Helvetica, Arial, sans-serif;
     margin: 0;
-    padding: 20px;
+    padding: 0;
     background: #f4f4f4;
     color: #333;
+}
+
+.page-shell {
+    padding: 20px;
 }
 
 .main-nav {
@@ -244,6 +248,24 @@ dd {
     border-radius: 50%;
     border: 2px solid #fff;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.direction-icon--current {
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.35));
+}
+.direction-icon--current .direction-arrow {
+    border-bottom-color: #ff6b4a;
+}
+.direction-icon--current .direction-dot {
+    background: #ff6b4a;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.photo-map-marker--other {
+    cursor: pointer;
+    transition: stroke-width 0.15s ease, fill-opacity 0.15s ease;
+}
+.photo-map-marker--other:hover {
+    stroke-width: 2.2px;
+    fill-opacity: 1;
 }
 
 .download-link {

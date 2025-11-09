@@ -18,7 +18,8 @@
 </head>
 <body>
     {% include '_menu.html.twig' %}
-    <div class="container" data-photo-title="{{ title|lower|capitalize|e }}">
+    <div class="page-shell">
+        <div class="container" data-photo-title="{{ title|lower|capitalize|e }}">
         <h1>Charlottesville Photos</h1>
         <a class="back-link" href="{{ base_path ~ '/' }}">← Back to gallery</a>
         <div class="photo-heading">
@@ -86,6 +87,7 @@
                 </ul>
             </div>
         {% endif %}
+        </div>
     </div>
     {% if show_editor %}
         <div class="photo-editor-overlay" id="photo-editor-overlay" hidden>
@@ -629,14 +631,28 @@
                 var initialLat = {{ map_lat|json_encode }};
                 var initialLon = {{ map_lon|json_encode }};
                 var directionAngle = {{ map_direction_angle|json_encode }};
+                var otherPhotoMarkers = {{ map_markers|default([])|json_encode|raw }};
+                var currentPhotoId = {{ photo_id|json_encode|raw }};
                 var mapInstance = null;
                 var markerInstance = null;
+                var otherMarkersLayer = null;
+                var otherMarkersRendered = false;
                 var defaultZoom = 16;
 
+                function escapeHtml(value) {
+                    if (value === null || typeof value === 'undefined') {
+                        return '';
+                    }
+                    var helper = document.createElement('div');
+                    helper.textContent = String(value);
+                    return helper.innerHTML;
+                }
+
                 function buildIcon(angle) {
+                    var iconClass = 'direction-icon direction-icon--current';
                     if (angle === null || typeof angle === 'undefined') {
                         return L.divIcon({
-                            className: 'direction-icon',
+                            className: iconClass,
                             html: '<div class="direction-dot"></div>',
                             iconSize: [36, 36],
                             iconAnchor: [18, 18]
@@ -644,11 +660,58 @@
                     }
 
                     return L.divIcon({
-                        className: 'direction-icon',
+                        className: iconClass,
                         html: '<div class="direction-arrow" style="transform: rotate(' + angle + 'deg);"></div>',
                         iconSize: [36, 36],
                         iconAnchor: [18, 18]
                     });
+                }
+
+                function renderOtherMarkers() {
+                    if (otherMarkersRendered || !mapInstance || !otherMarkersLayer) {
+                        return;
+                    }
+                    if (!Array.isArray(otherPhotoMarkers) || otherPhotoMarkers.length === 0) {
+                        otherMarkersRendered = true;
+                        return;
+                    }
+
+                    otherPhotoMarkers.forEach(function (markerData) {
+                        if (!markerData || markerData.id === currentPhotoId) {
+                            return;
+                        }
+
+                        var lat = Number(markerData.lat);
+                        var lon = Number(markerData.lon);
+                        if (!isFinite(lat) || !isFinite(lon)) {
+                            return;
+                        }
+
+                        var circle = L.circleMarker([lat, lon], {
+                            radius: 5,
+                            weight: 1.2,
+                            color: '#2f3d51',
+                            fillColor: '#7cb4ff',
+                            fillOpacity: 0.85,
+                            opacity: 0.9,
+                            className: 'photo-map-marker photo-map-marker--other'
+                        }).addTo(otherMarkersLayer);
+
+                        if (markerData.title) {
+                            circle.bindTooltip(escapeHtml(markerData.title), {
+                                direction: 'top',
+                                sticky: true
+                            });
+                        }
+
+                        if (markerData.url) {
+                            circle.on('click', function () {
+                                window.location.href = markerData.url;
+                            });
+                        }
+                    });
+
+                    otherMarkersRendered = true;
                 }
 
                 function ensureMap() {
@@ -661,6 +724,9 @@
                             maxZoom: 19,
                             attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
                         }).addTo(mapInstance);
+                    }
+                    if (!otherMarkersLayer) {
+                        otherMarkersLayer = L.layerGroup().addTo(mapInstance);
                     }
                     if (!markerInstance) {
                         markerInstance = L.marker([defaultLat, defaultLon], {
@@ -712,6 +778,9 @@
                     var map = ensureMap();
                     if (!map || !markerInstance) {
                         return;
+                    }
+                    if (!otherMarkersRendered) {
+                        renderOtherMarkers();
                     }
 
                     var target = [Number(lat), Number(lon)];

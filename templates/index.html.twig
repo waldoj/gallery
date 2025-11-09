@@ -7,32 +7,34 @@
 </head>
 <body>
     {% include '_menu.html.twig' %}
-    <h1>Charlottesville Photos</h1>
-    <p>A collection of photographs of downtown Charlottesville, Virginia, mostly from the 1990s.
-    Photographs are selected for what they show about the history of the built environment or
-    because they feature individuals who were often notable downtown characters, at least to the
-    photographer.</p>
-    {% if photos is empty %}
-        <p class="empty">No photos found in the library.</p>
-    {% else %}
-        <div class="gallery">
-            {% for photo in photos %}
-                <div class="photo" id="{{ photo.id|e }}">
-                    <a href="{{ photo.link }}">
-                        <div class="thumb-wrapper">
-                            <img src="{{ photo.thumbnail_path|e }}" alt="{{ (photo.alt_text is defined and photo.alt_text is not empty ? photo.alt_text : photo.title)|e }}">
+    <div class="page-shell">
+        <h1>Charlottesville Photos</h1>
+        <p>A collection of photographs of downtown Charlottesville, Virginia, mostly from the 1990s.
+        Photographs are selected for what they show about the history of the built environment or
+        because they feature individuals who were often notable downtown characters, at least to the
+        photographer.</p>
+        {% if photos is empty %}
+            <p class="empty">No photos found in the library.</p>
+        {% else %}
+            <div class="gallery">
+                {% for photo in photos %}
+                    <div class="photo" id="{{ photo.id|e }}">
+                        <a href="{{ photo.link }}">
+                            <div class="thumb-wrapper">
+                                <img src="{{ photo.thumbnail_path|e }}" alt="{{ (photo.alt_text is defined and photo.alt_text is not empty ? photo.alt_text : photo.title)|e }}">
+                            </div>
+                        </a>
+                        <div class="meta">
+                            <strong>{{ photo.title|e }}</strong>
+                            <span>{{ photo.date_taken|e }}</span>
                         </div>
-                    </a>
-                    <div class="meta">
-                        <strong>{{ photo.title|e }}</strong>
-                        <span>{{ photo.date_taken|e }}</span>
                     </div>
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
-    <footer>
-        <p>All photos copyright Waldo Jaquith, unless otherwise indicated. Photos are published under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en">the Creative Commons BY-NC-SA 4.0 license</a>.</p>
-    </footer>
+                {% endfor %}
+            </div>
+        {% endif %}
+        <footer>
+            <p>All photos copyright Waldo Jaquith, unless otherwise indicated. Photos are published under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en">the Creative Commons BY-NC-SA 4.0 license</a>.</p>
+        </footer>
+    </div>
 </body>
 </html>
