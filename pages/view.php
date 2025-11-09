@@ -160,6 +160,16 @@ $defaultMapLat = 38.030727;
 $defaultMapLon = -78.481511;
 $nearestPhotos = [];
 $mapMarkers = [];
+$markerSizePreferences = [];
+if (array_key_exists('thumbsquare', $sizes)) {
+    $markerSizePreferences[] = 'thumbsquare';
+}
+$markerSizePreferences[] = 'thumbnail';
+foreach ($sizes as $sizeName => $_) {
+    if (!in_array($sizeName, $markerSizePreferences, true)) {
+        $markerSizePreferences[] = (string) $sizeName;
+    }
+}
 
 if (isset($photoRow['gps_img_direction'])) {
     $directionAngle = (float) $photoRow['gps_img_direction'];
@@ -261,6 +271,23 @@ foreach ($photosWithLocation as $record) {
         continue;
     }
 
+    $recordFilename = isset($record['filename']) ? (string) $record['filename'] : '';
+    $thumbnailPath = null;
+    if ($recordFilename !== '') {
+        $recordExtension = strtolower((string) pathinfo($recordFilename, PATHINFO_EXTENSION));
+        $recordExtensionSuffix = $recordExtension !== '' ? '.' . $recordExtension : '';
+
+        foreach ($markerSizePreferences as $sizeName) {
+            $cleanName = preg_replace('/[^a-z0-9_\-]/i', '', (string) $sizeName);
+            $candidateFs = $thumbnailsDirFs . $recordId . '_' . $cleanName . $recordExtensionSuffix;
+            if (is_file($candidateFs)) {
+                $thumbnailPath = $thumbnails_dir . $recordId . '_' . $cleanName . $recordExtensionSuffix;
+                break;
+            }
+        }
+    }
+
+    $thumbnailUrl = $thumbnailPath !== null ? gallery_public_url_path($thumbnailPath) : null;
     $titleCandidate = isset($record['title']) ? (string) $record['title'] : '';
     $mapMarkers[] = [
         'id' => $recordId,
@@ -268,6 +295,7 @@ foreach ($photosWithLocation as $record) {
         'lon' => $longitude,
         'title' => $titleCandidate !== '' ? $titleCandidate : 'Untitled',
         'url' => gallery_public_url_path('/view/?id=' . rawurlencode($recordId)),
+        'thumbnail' => $thumbnailUrl,
     ];
 }
 

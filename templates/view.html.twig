@@ -648,6 +648,23 @@
                     return helper.innerHTML;
                 }
 
+                function escapeAttribute(value) {
+                    return escapeHtml(value).replace(/"/g, '&quot;');
+                }
+
+                function buildMarkerTooltip(markerData) {
+                    var titleText = (markerData && markerData.title) ? markerData.title : 'Untitled';
+                    var safeTitle = escapeHtml(titleText);
+                    var thumbnail = (markerData && markerData.thumbnail) ? markerData.thumbnail : null;
+                    var tooltipHtml = '<div class="photo-map-tooltip">';
+                    if (thumbnail) {
+                        tooltipHtml += '<img class="photo-map-tooltip__thumb" src="' + escapeAttribute(thumbnail) + '" alt="">';
+                    }
+                    tooltipHtml += '<span class="photo-map-tooltip__title">' + safeTitle + '</span>';
+                    tooltipHtml += '</div>';
+                    return tooltipHtml;
+                }
+
                 function buildIcon(angle) {
                     var iconClass = 'direction-icon direction-icon--current';
                     if (angle === null || typeof angle === 'undefined') {
@@ -697,12 +714,11 @@
                             className: 'photo-map-marker photo-map-marker--other'
                         }).addTo(otherMarkersLayer);
 
-                        if (markerData.title) {
-                            circle.bindTooltip(escapeHtml(markerData.title), {
-                                direction: 'top',
-                                sticky: true
-                            });
-                        }
+                        circle.bindTooltip(buildMarkerTooltip(markerData), {
+                            direction: 'top',
+                            sticky: true,
+                            className: 'photo-map-tooltip-wrapper'
+                        });
 
                         if (markerData.url) {
                             circle.on('click', function () {
