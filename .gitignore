@@ -22,3 +22,4 @@
 # Temp files
 *.tmp
 *.log
+settings.inc.php
