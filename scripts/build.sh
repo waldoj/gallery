@@ -43,6 +43,9 @@ fi
 echo "==> Updating library metadata"
 php "${ROOT_DIR}/updater.php"
 
+echo "==> Generating sitemap"
+php "${ROOT_DIR}/scripts/generate-sitemap.php"
+
 ORIGINALS_DIR="${ROOT_DIR}/originals"
 original_sample="$(find "${ORIGINALS_DIR}" -maxdepth 1 -type f -print -quit 2>/dev/null || true)"
 if [ -n "${original_sample}" ]; then

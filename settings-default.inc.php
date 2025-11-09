@@ -9,6 +9,7 @@ $sizes = array(
 );
 $photos_dir = 'originals/';
 $thumbnails_dir = 'photos/';
+$site_base_url = 'https://example.com/';
 
 /**
  * Set the OpenAI API key to generate alt text for photos.

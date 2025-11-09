@@ -16,6 +16,7 @@ $appRoot = dirname(__DIR__);
 
 require_once $appRoot . '/settings.inc.php';
 require_once $appRoot . '/functions.inc.php';
+require_once __DIR__ . '/sitemap.inc.php';
 
 $outputDir = $argv[1] ?? ($appRoot . '/build');
 $outputDir = normalizePath($outputDir);
@@ -57,6 +58,19 @@ copyDirectory($photosDirFs, $outputDir . '/' . trim($photos_dir, '/\\'));
 if (is_dir($appRoot . '/scripts')) {
     copyDirectory($appRoot . '/scripts', $outputDir . '/scripts');
 }
+
+echo "Generating sitemap...\n";
+$siteBaseUrl = isset($site_base_url) ? trim((string) $site_base_url) : '';
+gallery_generate_sitemap(
+    $libraryData,
+    $outputDir,
+    $siteBaseUrl,
+    [
+        '/' => '1.0',
+        '/map/' => '0.8',
+        '/about/' => '0.6',
+    ]
+);
 
 echo "Static site exported to {$outputDir}\n";
 
