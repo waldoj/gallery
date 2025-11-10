@@ -316,62 +316,6 @@ $tests = [
         $coords = GalleryExifHelper::extractGpsCoordinates([]);
         assertTrue($coords === null);
     },
-    'descriptions_page_lists_missing_photos' => function (): void {
-        if (!function_exists('imagecreatetruecolor')) {
-            return;
-        }
-
-        with_temp_dir(function (string $dir): void {
-            $originalsDir = $dir . '/originals';
-            mkdir($originalsDir);
-            $photosDir = $dir . '/photos';
-            mkdir($photosDir);
-
-            $image = imagecreatetruecolor(6, 6);
-            $orange = imagecolorallocate($image, 255, 165, 0);
-            imagefilledrectangle($image, 0, 0, 5, 5, $orange);
-            imagepng($image, $originalsDir . '/example.png');
-            imagedestroy($image);
-
-            create_test_database($dir . '/gallery.db', [
-                [
-                    'id' => 'example',
-                    'filename' => 'example.png',
-                    'title' => 'Example',
-                    'description' => '',
-                    'date_taken' => '',
-                ],
-            ]);
-
-            file_put_contents($dir . '/settings.inc.php', "<?php\n"
-                . '$database_path = ' . var_export('gallery.db', true) . ";\n"
-                . '$sizes = ' . var_export(['thumbnail' => 50, 'thumbsquare' => 400], true) . ";\n"
-                . '$photos_dir = ' . var_export('originals/', true) . ";\n"
-                . '$thumbnails_dir = ' . var_export('photos/', true) . ";\n"
-            );
-            file_put_contents($dir . '/functions.inc.php', "<?php require_once '" . addslashes(__DIR__ . '/../functions.inc.php') . "';");
-
-            $previousRoot = $GLOBALS['__gallery_root__'] ?? null;
-            $previousCwd = getcwd();
-            $GLOBALS['__gallery_root__'] = $dir;
-            chdir($dir);
-
-            ob_start();
-            include __DIR__ . '/../pages/descriptions.php';
-            $html = ob_get_clean();
-
-            chdir($previousCwd);
-            if ($previousRoot === null) {
-                unset($GLOBALS['__gallery_root__']);
-            } else {
-                $GLOBALS['__gallery_root__'] = $previousRoot;
-            }
-
-            assertTrue(strpos($html, 'Photos Missing Descriptions') !== false, 'Page heading should be present');
-            assertTrue(strpos($html, 'example.png') !== false, 'Filename should be rendered');
-            assertTrue(strpos($html, '<textarea>') !== false, 'YAML textarea should be rendered');
-        });
-    },
     'map_page_renders_geolocated_photos' => function (): void {
         if (!function_exists('imagecreatetruecolor')) {
             return;

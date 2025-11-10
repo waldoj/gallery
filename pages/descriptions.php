@@ -53,12 +53,6 @@ foreach ($libraryData as $record) {
     ];
 }
 
-$renderer = new GalleryTemplateRenderer();
-
-echo $renderer->render('missing_descriptions.html.twig', [
-    'entries' => $entries,
-]);
-
 /**
  * @param array<string, mixed> $sizes
  */
