@@ -81,7 +81,7 @@ $homeUrl = gallery_public_url_path('/');
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Photo Map</title>
+    <title>Charlottesville Photos Map</title>
     <link rel="stylesheet" href="<?= htmlspecialchars($stylesUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?= htmlspecialchars($leafletCssUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <style>
@@ -120,7 +120,7 @@ $homeUrl = gallery_public_url_path('/');
 <body>
     <?php echo $menuHtml; ?>
     <div id="map-wrapper">
-        <h1>Photo Map</h1>
+        <h1>Charlottesville Photos Map</h1>
         <p><a href="<?= htmlspecialchars($homeUrl, ENT_QUOTES, 'UTF-8'); ?>">← Back to gallery</a></p>
         <div id="photo-map"></div>
     </div>
