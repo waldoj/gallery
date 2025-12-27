@@ -9,9 +9,6 @@
 # Downloaded map assets
 /assets/vendor/leaflet/
 
-# Local originals (not tracked in repo)
-/originals/
-
 # PHP built-in server artifacts
 /.phpunit.result.cache
 
