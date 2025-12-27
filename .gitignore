@@ -15,7 +15,7 @@
 # macOS
 .DS_Store
 
-# Temp files
+# Transient files
 *.tmp
 *.log
 
