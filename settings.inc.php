@@ -9,8 +9,9 @@ $sizes = array(
 );
 $photos_dir = 'originals/';
 $thumbnails_dir = 'photos/';
-$site_base_url = 'https://example.com/';
+$site_base_url = 'http://waldo.jaquith.org/gallery/';
 
+// Load environment variables from a local .env file if present.
 $envPath = __DIR__ . '/.env';
 if (is_file($envPath)) {
     $envData = parse_ini_file($envPath, false, INI_SCANNER_RAW);

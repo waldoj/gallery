@@ -37,7 +37,7 @@ If you need to pass custom SSH options (for example, a specific private key), se
 
 ### Optional Alt Text Generation
 
-If you set `$openai_api_key` in `settings.inc.php`, the ingestion pipeline will request descriptive alt text for new photos using OpenAI’s API (the original image is sent to the API to generate the description). Leave the key empty to skip automatic generation.
+If you define `$openai_api_key` in `.env` (`OPENAI_API_KEY=abc123`), the ingestion pipeline will request descriptive alt text for new photos using OpenAI’s API (the original image is sent to the API to generate the description). Leave the key empty to skip automatic generation.
 
 ## License
 
