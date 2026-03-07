@@ -188,7 +188,9 @@ function rewriteForStatic(string $html, string $relativeRoot): string
 
 function rewriteViewLinks(string $html, string $relativeRoot): string
 {
-    return preg_replace_callback('#/view/\\?id=([A-Za-z0-9_%\\-]+)#', static function (array $matches) use ($relativeRoot): string {
+    // The pattern handles both plain HTML (/view/?id=X) and JSON-encoded
+    // (\/view\/?id=X) forms, since PHP's json_encode escapes slashes by default.
+    return preg_replace_callback('#\\\\?/view/\\\\?\\?id=([A-Za-z0-9_%\\-]+)#', static function (array $matches) use ($relativeRoot): string {
         $decoded = rawurldecode($matches[1]);
         return $relativeRoot . 'view/' . rawurlencode($decoded) . '.html';
     }, $html);
