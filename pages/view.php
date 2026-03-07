@@ -299,11 +299,13 @@ foreach ($photosWithLocation as $record) {
     ];
 }
 
-$detailFields = [
-    'Width' => $width,
-    'Height' => $height,
-    'Author' => $author,
-];
+$detailFields = [];
+
+if ($width !== null && $height !== null) {
+    $detailFields['Dimensions'] = $width . ' × ' . $height;
+}
+
+$detailFields['Author'] = $author;
 
 if ($cameraLabel !== null) {
     $detailFields['Camera'] = $cameraLabel;
@@ -322,6 +324,7 @@ echo $renderer->render('view.html.twig', [
     'raw_description' => $description,
     'alt_text' => $altText,
     'detail_fields' => $detailFields,
+    'camera_make' => $cameraMake,
     'download_url' => $downloadUrl,
     'share_image_url' => $shareImageUrl,
     'map_lat' => $mapLat,
