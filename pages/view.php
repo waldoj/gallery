@@ -84,12 +84,14 @@ $photoIdString = (string) ($photoRow['id'] ?? $photoId);
 
 $preferredSizes = ['large', 'medium', 'thumbnail'];
 $displayPath = null;
+$displaySizeName = null;
 $shareImagePath = null;
 
 foreach ($preferredSizes as $sizeName) {
     $candidateFs = $thumbnailsDirFs . $photoIdString . '_' . $sizeName . $extensionSuffix;
     if (is_file($candidateFs)) {
         $displayPath = $thumbnails_dir . $photoIdString . '_' . $sizeName . $extensionSuffix;
+        $displaySizeName = $sizeName;
         break;
     }
 }
@@ -100,6 +102,7 @@ if ($displayPath === null) {
         $candidateFs = $thumbnailsDirFs . $photoIdString . '_' . $cleanName . $extensionSuffix;
         if (is_file($candidateFs)) {
             $displayPath = $thumbnails_dir . $photoIdString . '_' . $cleanName . $extensionSuffix;
+            $displaySizeName = $sizeName;
             break;
         }
     }
@@ -128,6 +131,24 @@ $description = $photoRow['description'] ?? '';
 $dateTaken = $photoRow['date_taken'] ?? '';
 $width = $photoRow['width'] ?? null;
 $height = $photoRow['height'] ?? null;
+
+$photoDisplayWidth = null;
+$photoDisplayHeight = null;
+
+if ($width !== null && $height !== null) {
+    $maxDim = ($displaySizeName !== null && isset($sizes[$displaySizeName]))
+        ? (int) $sizes[$displaySizeName]
+        : null;
+    $origMax = max((int) $width, (int) $height);
+    if ($maxDim === null || $origMax <= $maxDim) {
+        $photoDisplayWidth = (int) $width;
+        $photoDisplayHeight = (int) $height;
+    } else {
+        $scale = $maxDim / $origMax;
+        $photoDisplayWidth = max(1, (int) round((int) $width * $scale));
+        $photoDisplayHeight = max(1, (int) round((int) $height * $scale));
+    }
+}
 $author = $photoRow['author'] ?? 'Waldo Jaquith';
 $license = $photoRow['license'] ?? 'CC BY-NC-SA 4.0';
 $altText = isset($photoRow['alt_text']) ? trim((string) $photoRow['alt_text']) : '';
@@ -320,6 +341,8 @@ echo $renderer->render('view.html.twig', [
     'description' => $description,
     'date_taken' => $dateTaken,
     'photo_path' => $photoUrl,
+    'photo_width' => $photoDisplayWidth,
+    'photo_height' => $photoDisplayHeight,
     'photo_id' => $photoIdString,
     'raw_description' => $description,
     'alt_text' => $altText,

@@ -35,7 +35,7 @@
             <strong>Taken:</strong>
             <span id="photo-date-value">{{ date_taken|e }}</span>
         </p>
-        <img class="photo__image" src="{{ photo_path|e }}" alt="{{ (alt_text is not empty ? alt_text : title)|e }}">
+        <img class="photo__image" src="{{ photo_path|e }}" alt="{{ (alt_text is not empty ? alt_text : title)|e }}"{% if photo_width is not null and photo_height is not null %} width="{{ photo_width }}" height="{{ photo_height }}"{% endif %}>
 
         <div class="meta-section" id="photo-description-section" {% if description is empty %}hidden{% endif %}>
             <h2>Description</h2>
