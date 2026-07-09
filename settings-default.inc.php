@@ -10,6 +10,7 @@ $sizes = array(
 $photos_dir = 'originals/';
 $thumbnails_dir = 'photos/';
 $site_base_url = 'https://example.com/';
+$GLOBALS['__gallery_site_base_url__'] = $site_base_url;
 
 $envPath = __DIR__ . '/.env';
 if (is_file($envPath)) {

@@ -9,7 +9,8 @@ $sizes = array(
 );
 $photos_dir = 'originals/';
 $thumbnails_dir = 'photos/';
-$site_base_url = 'http://waldo.jaquith.org/gallery/';
+$site_base_url = 'https://downtown.jaquith.org/';
+$GLOBALS['__gallery_site_base_url__'] = $site_base_url;
 
 // Load environment variables from a local .env file if present.
 $envPath = __DIR__ . '/.env';

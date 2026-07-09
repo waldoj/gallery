@@ -1,0 +1,23 @@
+{# Favicons / app icons (all pages) #}
+<link rel="icon" href="{{ base_path ~ '/assets/favicon.ico' }}" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ base_path ~ '/assets/favicon-32x32.png' }}">
+<link rel="icon" type="image/png" sizes="16x16" href="{{ base_path ~ '/assets/favicon-16x16.png' }}">
+<link rel="apple-touch-icon" sizes="180x180" href="{{ base_path ~ '/assets/apple-touch-icon.png' }}">
+<link rel="manifest" href="{{ base_path ~ '/assets/site.webmanifest' }}">
+{% if social_default is defined and social_default %}
+{# Default social preview image (used when the site itself is shared) #}
+{% set share_title = og_title|default('Charlottesville Photos') %}
+{% set share_description = og_description|default('A collection of photographs of downtown Charlottesville, Virginia, mostly from the 1990s.') %}
+{% set share_image = site_base_url ~ 'assets/social-preview.jpg' %}
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Charlottesville Photos">
+<meta property="og:title" content="{{ share_title|e }}">
+<meta property="og:description" content="{{ share_description|e }}">
+<meta property="og:image" content="{{ share_image|e }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ share_title|e }}">
+<meta name="twitter:description" content="{{ share_description|e }}">
+<meta name="twitter:image" content="{{ share_image|e }}">
+{% endif %}

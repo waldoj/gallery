@@ -52,6 +52,21 @@ function gallery_is_static_export(): bool
     return defined('GALLERY_STATIC_EXPORT') && constant('GALLERY_STATIC_EXPORT') === true;
 }
 
+/**
+ * Absolute canonical base URL for the deployed site, with a trailing slash.
+ * Used to build absolute URLs (e.g. social preview images) that scrapers such
+ * as iMessage, Slack, and Facebook require. Empty string when unconfigured.
+ */
+function gallery_site_base_url(): string
+{
+    $url = $GLOBALS['__gallery_site_base_url__'] ?? '';
+    if (!is_string($url) || trim($url) === '') {
+        return '';
+    }
+
+    return rtrim(trim($url), '/') . '/';
+}
+
 function gallery_generate_alt_text(string $apiKey, string $model, array $context, ?string $imagePath = null): ?string
 {
 
@@ -1156,6 +1171,7 @@ final class GalleryTemplateRenderer
         );
 
         $this->twig->addGlobal('base_path', gallery_base_path());
+        $this->twig->addGlobal('site_base_url', gallery_site_base_url());
     }
 
     public function render(string $template, array $context = []): string

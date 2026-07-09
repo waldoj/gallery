@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <title>{{ title|e }} - Charlottesville Photos</title>
     <link rel="stylesheet" href="{{ base_path ~ '/assets/styles.css' }}">
+    {% include '_head_meta.html.twig' %}
     <meta property="og:type" content="article">
     <meta property="og:title" content="{{ title|e }}">
     <meta property="og:description" content="{{ (alt_text is not empty ? alt_text : (description is not empty ? description : title))|striptags|e }}">

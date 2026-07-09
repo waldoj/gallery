@@ -20,6 +20,10 @@ try {
 
 $renderer = new GalleryTemplateRenderer();
 $menuHtml = $renderer->render('_menu.html.twig', []);
+$headMetaHtml = $renderer->render('_head_meta.html.twig', [
+    'social_default' => true,
+    'og_title' => 'Charlottesville Photos Map',
+]);
 
 $photosWithLocation = [];
 
@@ -84,6 +88,7 @@ $homeUrl = gallery_public_url_path('/');
     <title>Charlottesville Photos Map</title>
     <link rel="stylesheet" href="<?= htmlspecialchars($stylesUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?= htmlspecialchars($leafletCssUrl, ENT_QUOTES, 'UTF-8'); ?>">
+    <?= $headMetaHtml; ?>
     <style>
         body {
             padding: 0;
