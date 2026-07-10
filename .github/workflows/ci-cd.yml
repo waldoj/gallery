@@ -64,3 +64,12 @@ jobs:
       - name: Deploy static site to S3
         if: github.ref == 'refs/heads/main'
         run: aws s3 sync build/ s3://${{ env.S3_BUCKET }}/ --delete
+
+      - name: Invalidate CloudFront cache
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if [ -z "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
+            echo "CLOUDFRONT_DISTRIBUTION_ID not set; skipping CloudFront invalidation"
+            exit 0
+          fi
+          aws cloudfront create-invalidation --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
