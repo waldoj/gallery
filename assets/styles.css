@@ -525,34 +525,82 @@ dd {
     color: #1f2933;
 }
 
+/* ---------------------------------------------------------------------------
+   Mobile breakpoint (phones and small tablets).
+
+   Everything below assumes the responsive viewport meta tag, so 1 CSS pixel is
+   roughly 1 device-independent pixel. Type scales up from the 16px desktop
+   default, thumbnails become one-per-row at ~2x their desktop size, and maps
+   grow tall enough to be panned and pinched usefully.
+   --------------------------------------------------------------------------- */
 @media (max-width: 768px) {
     body {
-        padding: 16px;
-        font-size: 18px;
+        font-size: 19px;
         line-height: 1.6;
+    }
+
+    .page-shell {
+        padding: 16px;
     }
 
     .main-nav {
         flex-wrap: wrap;
-        gap: 12px;
-        padding: 12px 16px;
+        gap: 20px;
+        padding: 14px 16px;
+        font-size: 1.05rem;
     }
 
+    /* Comfortable tap targets for the nav links. */
     .main-nav a {
-        font-size: 1.05rem;
+        padding: 6px 0;
+    }
+
+    h1 {
+        font-size: 1.8rem;
+    }
+
+    h2 {
+        font-size: 1.4rem;
     }
 
     .container {
         padding: 18px;
     }
 
+    /*
+     * One photo per row: the thumbnail then fills the full content width,
+     * which is roughly double the ~180px it occupies on desktop.
+     */
     .gallery {
-        gap: 20px;
-        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .photo {
+        padding: 14px;
+    }
+
+    .photo .thumb-wrapper {
+        max-width: 100%;
+        margin-bottom: 12px;
+    }
+
+    .photo img {
+        width: 100%;
+        height: 100%;
+    }
+
+    .photo .meta {
+        font-size: 1.05rem;
+    }
+
+    .photo .meta span {
+        font-size: 0.95rem;
     }
 
     .map-container {
-        height: 260px;
+        height: 60vh;
+        min-height: 320px;
     }
 
     .photo-heading {
@@ -566,53 +614,8 @@ dd {
 
     .photo-edit-button {
         width: 100%;
-    }
-
-    .photo-editor-map {
-        height: 200px;
-    }
-
-    .photo .thumb-wrapper {
-        max-width: 100%;
-    }
-
-    .photo img {
-        max-height: none;
-        width: 100%;
-    }
-}
-
-@media (max-width: 480px) {
-    body {
-        padding: 12px;
-        font-size: 19px;
-        line-height: 1.65;
-    }
-
-    .main-nav {
-        padding: 10px 12px;
-        gap: 10px;
-    }
-
-    .container {
-        padding: 15px;
-    }
-
-    .gallery {
-        grid-template-columns: 1fr;
-        gap: 20px;
-    }
-
-    .photo {
-        padding: 10px;
-    }
-
-    .photo .thumb-wrapper {
-        margin-bottom: 6px;
-    }
-
-    .map-container {
-        height: 220px;
+        padding: 12px 16px;
+        font-size: 1rem;
     }
 
     .photo-editor-modal {
@@ -626,6 +629,8 @@ dd {
 
     .photo-editor-actions button {
         width: 100%;
+        padding: 12px 16px;
+        font-size: 1rem;
     }
 
     .photo-editor-location {
@@ -637,15 +642,69 @@ dd {
     }
 
     .photo-editor-map {
-        height: 180px;
+        height: 300px;
     }
 
-    .photo .thumb-wrapper {
+    /*
+     * iOS zooms the page when focusing an input whose text is under 16px, so
+     * keep form controls at or above that threshold.
+     */
+    .photo-editor-modal input[type="text"],
+    .photo-editor-modal textarea {
+        font-size: 16px;
+        padding: 10px;
+    }
+
+    .nearby-photos {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 16px;
+    }
+
+    .nearby-photo img {
         max-width: 100%;
     }
 
-    .photo img {
-        max-height: none;
-        width: 100%;
+    .nearby-photo span {
+        font-size: 1rem;
+    }
+
+    /* The photo detail rows get cramped; stack the label above the value. */
+    .detail-row {
+        align-items: flex-start;
+        padding: 12px 0;
+    }
+
+    .detail-label {
+        width: 110px;
+        font-size: 0.75rem;
+    }
+
+    .detail-value {
+        font-size: 1rem;
+    }
+
+    .detail-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+/* Narrow phones: trim the horizontal padding so photos stay as large as possible. */
+@media (max-width: 480px) {
+    .page-shell {
+        padding: 12px;
+    }
+
+    .container {
+        padding: 14px;
+    }
+
+    .main-nav {
+        gap: 16px;
+        padding: 12px;
+    }
+
+    .nearby-photos {
+        grid-template-columns: repeat(2, 1fr);
     }
 }

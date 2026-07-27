@@ -108,16 +108,18 @@ $homeUrl = gallery_public_url_path('/');
             #map-wrapper {
                 padding: 16px;
             }
+            /*
+             * Fill as much of the screen as possible: the map is the whole
+             * point of this page, and a short map is unusable on a phone.
+             */
             #photo-map {
-                height: 60vh;
+                height: calc(100vh - 220px);
+                min-height: 420px;
             }
         }
         @media (max-width: 480px) {
             #map-wrapper {
                 padding: 12px;
-            }
-            #photo-map {
-                height: 55vh;
             }
         }
     </style>
